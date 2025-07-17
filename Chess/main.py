@@ -24,11 +24,32 @@ def main():
     gs = engine.ChessEngine()
     print(gs.board)
     loadImages()
+    selected = None
     running = True
     while running:
         for e in p.event.get():
             if e.type == p.QUIT:
                 running = False
+            elif e.type == p.MOUSEBUTTONDOWN and e.button == 1:
+                x, y = e.pos
+                col = x // SQR_SIZE
+                row = y // SQR_SIZE
+
+                if selected is None: # first click
+                    if gs.board[row][col] != '--':
+                        selected = (row, col)
+                        #print("selected:", gs.board[row][col], "at", row, col)
+
+                else:
+                    startRow, startCol = selected
+                    piece = gs.board[startRow][startCol]
+                    #print(f"moving {piece} from ({startRow}, {startCol}) to ({row}, {col})")
+
+                    gs.board[startRow][startCol] = '--'
+                    gs.board[row][col] = piece
+
+                    selected = None                    
+
             drawGameState(screen, gs)
             clock.tick(fps)
             p.display.flip()
