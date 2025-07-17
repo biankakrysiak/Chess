@@ -26,7 +26,8 @@ images = {}
 5. Load images once, create a dictionary of images, call it once in main:
 ```python
 def loadImages():
-    IMAGES['wP'] = p.image.load("img/wP.png"), but it's too much code
+    # one image at a time, too much code
+    IMAGES['wP'] = p.image.load("img/wP.png") 
     pieces = ['wP', 'wR', ...]
     for piece in pieces: 
         IMAGES[pieces] = p.image.load("img/" + piece + ".png")
@@ -76,12 +77,12 @@ def drawBoard(screen):
 def drawPieces(screen, board): # iterate through rows and columns,
 # using board from engine.py check if a piece is not '--' and draw the piece
 ```
-
-TBD 
 8. User input, clicks and selections
 add mouse event handling in main.py in while running: loop,
 track two clicks first for the piece, second for destination
 call gs.makeMove(move) when a valid move is detected
+
+TBD
 
 9. Create a Move Class in engine.py that stores
 start square (row, col),
