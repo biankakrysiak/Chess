@@ -80,22 +80,23 @@ def drawPieces(screen, board): # iterate through rows and columns,
 8. User input, clicks and selections
 add mouse event handling in main.py in while running: loop,
 track two clicks first for the piece, second for destination
-call gs.makeMove(move) when a valid move is detected
 
-TBD
+
 
 9. Create a Move Class in engine.py that stores
 start square (row, col),
 end square,
 piece moved/captured.
-(?) add a __str__() method to display moves like e2e4
+add a __str__() method to display moves like e2e4 # TO DO
 
 10. Move execution in engine.py
 Add a method makeMove(move) that
 modifies the 'board',
 appends the move to moveLog,
 flips whiteToMove
-(?) undoMove() for taking back a move
+undoMove() for taking back a move # TO DO
+
+TBD
 
 11. Generate valid moves in engine.py
 Add getValidMoves() and getAllPossibleMoves()
