@@ -26,6 +26,8 @@ def main():
     loadImages()
     selected = None
     running = True
+    moveNr = 1
+    columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     while running:
         for e in p.event.get():
             if e.type == p.QUIT:
@@ -37,22 +39,39 @@ def main():
 
                 if selected is None: # first click
                     if gs.board[row][col] != '--':
-                        selected = (row, col)
-                        #print("selected:", gs.board[row][col], "at", row, col)
+                        piece = gs.board[row][col]
+                        if (gs.whiteToMove and piece[0] == 'w') or (not gs.whiteToMove and piece[0] == 'b'):
+                            selected = (row, col)
 
                 else:
-                    startRow, startCol = selected
-                    piece = gs.board[startRow][startCol]
-                    #print(f"moving {piece} from ({startRow}, {startCol}) to ({row}, {col})")
+                    if selected == (row, col):
+                        selected = None
+                    else:
+                        startRow, startCol = selected
+                        piece = gs.board[startRow][startCol]
 
-                    gs.board[startRow][startCol] = '--'
-                    gs.board[row][col] = piece
-
-                    selected = None                    
+                        if gs.board[row][col] != gs.board[startRow][startCol]:
+                            if gs.whiteToMove and piece[0] == 'w':
+                                gs.board[startRow][startCol] = '--'
+                                gs.board[row][col] = piece
+                                gs.moveLog.append(f"{moveNr}. {piece}{col}{row}")
+                                #gs.board.append(f"{moveNr}. {piece}{columns[col]}{row}")
+                                gs.whiteToMove = False
+                                moveNr += 1
+                                selected = None
+                            elif not gs.whiteToMove and piece[0] == 'b':
+                                gs.board[startRow][startCol] = '--'
+                                gs.board[row][col] = piece
+                                gs.moveLog.append(f"{moveNr}. {piece}{col}{row}")                        
+                                gs.whiteToMove = True
+                                moveNr += 1
+                                selected = None
 
             drawGameState(screen, gs)
             clock.tick(fps)
             p.display.flip()
+            #print(gs.board)
+            #print(gs.moveLog)
             
 
 def drawGameState(screen, gs):
