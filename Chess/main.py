@@ -1,5 +1,5 @@
 # Handles user input and shows current position (Game state)
-import pygame as p
+import pygame as p # type: ignore
 import engine
 from move import Move
 
@@ -52,7 +52,7 @@ def main():
                         validMoves = gs.getAllPossibleMoves()
                         if move in validMoves:
                             gs.makeMove(move)
-                            print(move)  # debug print
+                            print(move)
                         selected = None
 
             drawGameState(screen, gs)
