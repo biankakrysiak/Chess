@@ -49,8 +49,10 @@ def main():
                         selected = None
                     else:
                         move = Move(selected, (row, col), gs.board)
-                        gs.makeMove(move)
-                        print(move)  # debug print
+                        validMoves = gs.getAllPossibleMoves()
+                        if move in validMoves:
+                            gs.makeMove(move)
+                            print(move)  # debug print
                         selected = None
 
             drawGameState(screen, gs)
