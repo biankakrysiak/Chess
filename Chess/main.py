@@ -1,7 +1,7 @@
 # Handles user input and shows current position (Game state)
-
 import pygame as p
 import engine
+from move import Move
 
 WIDTH = 512
 HEIGHT = 512
@@ -22,7 +22,7 @@ def main():
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
     gs = engine.ChessEngine()
-    print(gs.board)
+    #print(gs.board)
     loadImages()
     selected = None
     running = True
@@ -37,7 +37,8 @@ def main():
                 col = x // SQR_SIZE
                 row = y // SQR_SIZE
 
-                if selected is None: # first click
+                # first click
+                if selected is None: 
                     if gs.board[row][col] != '--':
                         piece = gs.board[row][col]
                         if (gs.whiteToMove and piece[0] == 'w') or (not gs.whiteToMove and piece[0] == 'b'):
@@ -47,25 +48,10 @@ def main():
                     if selected == (row, col):
                         selected = None
                     else:
-                        startRow, startCol = selected
-                        piece = gs.board[startRow][startCol]
-
-                        if gs.board[row][col] != gs.board[startRow][startCol]:
-                            if gs.whiteToMove and piece[0] == 'w':
-                                gs.board[startRow][startCol] = '--'
-                                gs.board[row][col] = piece
-                                gs.moveLog.append(f"{moveNr}. {piece}{col}{row}")
-                                #gs.board.append(f"{moveNr}. {piece}{columns[col]}{row}")
-                                gs.whiteToMove = False
-                                moveNr += 1
-                                selected = None
-                            elif not gs.whiteToMove and piece[0] == 'b':
-                                gs.board[startRow][startCol] = '--'
-                                gs.board[row][col] = piece
-                                gs.moveLog.append(f"{moveNr}. {piece}{col}{row}")                        
-                                gs.whiteToMove = True
-                                moveNr += 1
-                                selected = None
+                        move = Move(selected, (row, col), gs.board)
+                        gs.makeMove(move)
+                        print(move)  # debug print
+                        selected = None
 
             drawGameState(screen, gs)
             clock.tick(fps)
