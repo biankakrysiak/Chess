@@ -119,10 +119,41 @@ class ChessEngine:
                 col = dc + col    
     
     def getKnightMoves(self, r, c, moves):
-        return 0
+        directions = [(-2,-1), (-2,1), (-1,-2), (-1,2),
+                        (1,-2),  (1,2),  (2,-1),  (2,1)]
+        enemyColor = 'b' if self.whiteToMove else 'w'
+        for d in directions:
+            dr, dc = d
+            row, col = r+dr, c+dc
+            while 0 <= row <= 7 and 0 <= col <= 7:
+                square = self.board[row][col]
+                if square == "--":
+                    moves.append(Move((r, c), (row, col), self.board))
+                elif square[0] == enemyColor:
+                    moves.append(Move((r, c), (row, col), self.board))
+                    break
+                else:
+                    break
+                row = dr + row
+                col = dc + col    
     
     def getQueenMoves(self, r, c, moves):
-        return 0
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1,-1), (-1,1), (1,-1), (1,1)]
+        enemyColor = 'b' if self.whiteToMove else 'w'
+        for d in directions:
+            dr, dc = d
+            row, col = r+dr, c+dc
+            while 0 <= row <= 7 and 0 <= col <= 7:
+                square = self.board[row][col]
+                if square == "--":
+                    moves.append(Move((r, c), (row, col), self.board))
+                elif square[0] == enemyColor:
+                    moves.append(Move((r, c), (row, col), self.board))
+                    break
+                else:
+                    break
+                row = dr + row
+                col = dc + col    
     
     def getKingMoves(self, r, c, moves):
         return 0
