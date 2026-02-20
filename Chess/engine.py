@@ -16,11 +16,57 @@ class ChessEngine:
         ]
         self.whiteToMove = True
         self.moveLog = []
+        self.whiteKingMoved = False
+        self.blackKingMoved = False
+        self.whiteKingsRookMoved = False
+        self.whiteQueensRookMoved = False
+        self.blackKingsRookMoved = False
+        self.blackQueensRookMoved = False
         
     def makeMove(self, move):
         self.board[move.startRow][move.startCol] = "--"
         self.board[move.endRow][move.endCol] = move.pieceMoved
         self.moveLog.append(move)
+
+        # update king rook moved flags, for castling
+        if move.pieceMoved == 'wK':
+            self.whiteKingMoved = True
+        elif move.pieceMoved == 'bK':
+            self.blackKingMoved = True
+        elif move.pieceMoved == 'wR':
+            if move.startRow == 7 and move.startCol == 0:
+                self.whiteQueensRookMoved = True
+            elif move.startRow == 7 and move.startCol == 7:
+                self.whiteKingsRookMoved = True
+        elif move.pieceMoved == 'bR':
+            if move.startRow == 0 and move.startCol == 0:
+                self.blackQueensRookMoved = True
+            elif move.startRow == 0 and move.startCol == 7:
+                self.blackKingsRookMoved = True        
+
+        # handle castling
+        if move.pieceMoved[1] == 'K' and abs(move.endCol - move.startCol) == 2:
+            if move.endCol == 6:  # kingside
+                rookStartCol = 7
+                rookEndCol = 5
+            else:  # queenside
+                rookStartCol = 0
+                rookEndCol = 3
+            self.board[move.endRow][rookEndCol] = self.board[move.endRow][rookStartCol]
+            self.board[move.endRow][rookStartCol] = "--"
+
+            # update rook flags
+            if self.whiteToMove:
+                if rookStartCol == 7:
+                    self.whiteKingsRookMoved = True
+                else:
+                    self.whiteQueensRookMoved = True
+            else:
+                if rookStartCol == 7:
+                    self.blackKingsRookMoved = True
+                else:
+                    self.blackQueensRookMoved = True        
+        
         self.whiteToMove = not self.whiteToMove
 
     def getAllPossibleMoves(self):
@@ -81,8 +127,27 @@ class ChessEngine:
                 if self.board[r+1][c+1] != "--" and self.board[r+1][c+1][0] == "w":
                     moves.append(Move((r, c), (r+1, c+1), self.board))
         
-    def getRookMoves(self, r, c, moves):
+    def pieceMoves(self, directions, r, c, moves, slide=True):
         # generate all possible moves from position (r,c) for current player
+        enemyColor = 'b' if self.whiteToMove else 'w'
+        for d in directions:
+            dr, dc = d
+            row, col = r+dr, c+dc
+            while 0 <= row <= 7 and 0 <= col <= 7:
+                square = self.board[row][col]
+                if square == "--":
+                    moves.append(Move((r, c), (row, col), self.board))
+                elif square[0] == enemyColor:
+                    moves.append(Move((r, c), (row, col), self.board))
+                    break
+                else:
+                    break
+                if not slide:
+                    break
+                row = dr + row
+                col = dc + col   
+    
+    def getRookMoves(self, r, c, moves):
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # up, down, left, right
         self.pieceMoves(directions, r, c, moves)          
 
@@ -98,24 +163,29 @@ class ChessEngine:
     def getKnightMoves(self, r, c, moves):
         directions = [(-2,-1), (-2,1), (-1,-2), (-1,2),
                         (1,-2),  (1,2),  (2,-1),  (2,1)]
-        self.pieceMoves(directions, r, c, moves)   
+        self.pieceMoves(directions, r, c, moves, slide=False) 
+        # knights jump directly to squares, only one possible square per move direction - doesn't need the loop
     
-    def pieceMoves(self, directions, r, c, moves):
-        enemyColor = 'b' if self.whiteToMove else 'w'
-        for d in directions:
-            dr, dc = d
-            row, col = r+dr, c+dc
-            while 0 <= row <= 7 and 0 <= col <= 7:
-                square = self.board[row][col]
-                if square == "--":
-                    moves.append(Move((r, c), (row, col), self.board))
-                elif square[0] == enemyColor:
-                    moves.append(Move((r, c), (row, col), self.board))
-                    break
-                else:
-                    break
-                row = dr + row
-                col = dc + col   
-
     def getKingMoves(self, r, c, moves):
-        return 0
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),  # straight
+              (-1, -1), (-1, 1), (1, -1), (1, 1)] # diagonal
+        self.pieceMoves(directions, r, c, moves, slide=False) 
+        self.getCastleMoves(r, c, moves)
+
+    def getCastleMoves(self, r, c, moves):
+        if self.whiteToMove:
+            if not self.whiteKingMoved:
+                # Kingside
+                if not self.whiteKingsRookMoved and self.board[7][5] == "--" and self.board[7][6] == "--":
+                    moves.append(Move((7, 4), (7, 6), self.board))  # king moves 2 squares
+                # Queenside
+                if not self.whiteQueensRookMoved and self.board[7][1] == "--" and self.board[7][2] == "--" and self.board[7][3] == "--":
+                    moves.append(Move((7, 4), (7, 2), self.board))
+        else:
+            if not self.blackKingMoved:
+                # Kingside
+                if not self.blackKingsRookMoved and self.board[0][5] == "--" and self.board[0][6] == "--":
+                    moves.append(Move((0, 4), (0, 6), self.board))
+                # Queenside
+                if not self.blackQueensRookMoved and self.board[0][1] == "--" and self.board[0][2] == "--" and self.board[0][3] == "--":
+                    moves.append(Move((0, 4), (0, 2), self.board))
