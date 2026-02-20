@@ -84,43 +84,23 @@ class ChessEngine:
     def getRookMoves(self, r, c, moves):
         # generate all possible moves from position (r,c) for current player
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # up, down, left, right
-        enemyColor = 'b' if self.whiteToMove else 'w'
-        for d in directions:
-            dr, dc = d
-            row, col = r+dr, c+dc
-            while 0 <= row <= 7 and 0 <= col <= 7:
-                square = self.board[row][col]
-                if square == "--":
-                    moves.append(Move((r, c), (row, col), self.board))
-                elif square[0] == enemyColor:
-                    moves.append(Move((r, c), (row, col), self.board))
-                    break
-                else:
-                    break
-                row = dr + row
-                col = dc + col           
+        self.pieceMoves(directions, r, c, moves)          
 
     def getBishopMoves(self, r, c, moves):
         directions = [(-1,-1), (-1,1), (1,-1), (1,1)]  # up-left, up-right, down-left, down-right
-        enemyColor = 'b' if self.whiteToMove else 'w'
-        for d in directions:
-            dr, dc = d
-            row, col = r+dr, c+dc
-            while 0 <= row <= 7 and 0 <= col <= 7:
-                square = self.board[row][col]
-                if square == "--":
-                    moves.append(Move((r, c), (row, col), self.board))
-                elif square[0] == enemyColor:
-                    moves.append(Move((r, c), (row, col), self.board))
-                    break
-                else:
-                    break
-                row = dr + row
-                col = dc + col    
+        self.pieceMoves(directions, r, c, moves)
+    
+    def getQueenMoves(self, r, c, moves):
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1), 
+                      (-1,-1), (-1,1), (1,-1), (1,1)]
+        self.pieceMoves(directions, r, c, moves)
     
     def getKnightMoves(self, r, c, moves):
         directions = [(-2,-1), (-2,1), (-1,-2), (-1,2),
                         (1,-2),  (1,2),  (2,-1),  (2,1)]
+        self.pieceMoves(directions, r, c, moves)   
+    
+    def pieceMoves(self, directions, r, c, moves):
         enemyColor = 'b' if self.whiteToMove else 'w'
         for d in directions:
             dr, dc = d
@@ -135,25 +115,7 @@ class ChessEngine:
                 else:
                     break
                 row = dr + row
-                col = dc + col    
-    
-    def getQueenMoves(self, r, c, moves):
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1,-1), (-1,1), (1,-1), (1,1)]
-        enemyColor = 'b' if self.whiteToMove else 'w'
-        for d in directions:
-            dr, dc = d
-            row, col = r+dr, c+dc
-            while 0 <= row <= 7 and 0 <= col <= 7:
-                square = self.board[row][col]
-                if square == "--":
-                    moves.append(Move((r, c), (row, col), self.board))
-                elif square[0] == enemyColor:
-                    moves.append(Move((r, c), (row, col), self.board))
-                    break
-                else:
-                    break
-                row = dr + row
-                col = dc + col    
-    
+                col = dc + col   
+
     def getKingMoves(self, r, c, moves):
         return 0
