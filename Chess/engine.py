@@ -81,17 +81,48 @@ class ChessEngine:
                 if self.board[r+1][c+1] != "--" and self.board[r+1][c+1][0] == "w":
                     moves.append(Move((r, c), (r+1, c+1), self.board))
         
-        def getRookMoves(self, r, c, moves):
-            return 0
+    def getRookMoves(self, r, c, moves):
+        # generate all possible moves from position (r,c) for current player
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # up, down, left, right
+        enemyColor = 'b' if self.whiteToMove else 'w'
+        for d in directions:
+            dr, dc = d
+            row, col = r+dr, c+dc
+            while 0 <= row <= 7 and 0 <= col <= 7:
+                square = self.board[row][col]
+                if square == "--":
+                    moves.append(Move((r, c), (row, col), self.board))
+                elif square[0] == enemyColor:
+                    moves.append(Move((r, c), (row, col), self.board))
+                    break
+                else:
+                    break
+                row = dr + row
+                col = dc + col           
 
-        def getBishopMoves(self, r, c, moves):
-            return 0
-        
-        def getKnightMoves(self, r, c, moves):
-            return 0
-        
-        def getQueenMoves(self, r, c, moves):
-            return 0
-        
-        def getKingMoves(self, r, c, moves):
-            return 0
+    def getBishopMoves(self, r, c, moves):
+        directions = [(-1,-1), (-1,1), (1,-1), (1,1)]  # up-left, up-right, down-left, down-right
+        enemyColor = 'b' if self.whiteToMove else 'w'
+        for d in directions:
+            dr, dc = d
+            row, col = r+dr, c+dc
+            while 0 <= row <= 7 and 0 <= col <= 7:
+                square = self.board[row][col]
+                if square == "--":
+                    moves.append(Move((r, c), (row, col), self.board))
+                elif square[0] == enemyColor:
+                    moves.append(Move((r, c), (row, col), self.board))
+                    break
+                else:
+                    break
+                row = dr + row
+                col = dc + col    
+    
+    def getKnightMoves(self, r, c, moves):
+        return 0
+    
+    def getQueenMoves(self, r, c, moves):
+        return 0
+    
+    def getKingMoves(self, r, c, moves):
+        return 0
