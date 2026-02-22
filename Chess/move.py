@@ -1,5 +1,5 @@
 class Move:
-    def __init__(self, startSq, endSq, board):
+    def __init__(self, startSq, endSq, board, enPassant=False):
         self.startRow = startSq[0]
         self.startCol = startSq[1]
         self.endRow = endSq[0]
@@ -9,6 +9,7 @@ class Move:
         self.pieceCaptured = board[self.endRow][self.endCol]
 
         self.promotionPending = False
+        self.enPassant = enPassant
         
         # compare 1 integer instead of 4, faster
         self.moveID = (

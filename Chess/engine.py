@@ -22,11 +22,13 @@ class ChessEngine:
         self.whiteQueensRookMoved = False
         self.blackKingsRookMoved = False
         self.blackQueensRookMoved = False
+        self.enPassantTarget = None
         
     def makeMove(self, move):
         self.board[move.startRow][move.startCol] = "--"
         self.board[move.endRow][move.endCol] = move.pieceMoved
         self.moveLog.append(move)
+        self.enPassantTarget = None
 
         # update king rook moved flags, for castling
         if move.pieceMoved == 'wK':
@@ -69,8 +71,13 @@ class ChessEngine:
         # pawn promotion
         if move.pieceMoved[1] == "P" and (move.endRow == 0 or move.endRow == 7):
             move.promotionPending = True
-            
-        
+        # en passant 
+        if move.pieceMoved[1] == "P" and abs(move.startRow - move.endRow) == 2:
+            midRow = (move.startRow + move.endRow) // 2
+            self.enPassantTarget = (midRow, move.startCol)
+        if move.enPassant:
+            self.board[move.startRow][move.endCol] = "--"
+
         self.whiteToMove = not self.whiteToMove
 
     def getAllPossibleMoves(self):
@@ -113,7 +120,11 @@ class ChessEngine:
             if c+1 <= 7 and r-1 >= 0:
                 if self.board[r-1][c+1] != "--" and self.board[r-1][c+1][0] == "b":
                     moves.append(Move((r, c), (r-1, c+1), self.board))
-        
+            if (r-1, c-1) == self.enPassantTarget:
+                moves.append(Move((r,c),(r-1,c-1), self.board, enPassant=True))
+            if (r-1, c+1) == self.enPassantTarget:
+                moves.append(Move((r,c),(r-1,c+1), self.board, enPassant=True))
+
         else: # black pawn
             # 1 square forward
             if r+1 <= 7 and self.board[r+1][c] == "--":
@@ -130,7 +141,11 @@ class ChessEngine:
             if c+1 <= 7 and r+1 <= 7:
                 if self.board[r+1][c+1] != "--" and self.board[r+1][c+1][0] == "w":
                     moves.append(Move((r, c), (r+1, c+1), self.board))
-        
+            if (r+1, c-1) == self.enPassantTarget:
+                moves.append(Move((r,c),(r+1,c-1), self.board, enPassant=True))
+            if (r+1, c+1) == self.enPassantTarget:
+                moves.append(Move((r,c),(r+1,c+1), self.board, enPassant=True))
+
     def pieceMoves(self, directions, r, c, moves, slide=True):
         # generate all possible moves from position (r,c) for current player
         enemyColor = 'b' if self.whiteToMove else 'w'
