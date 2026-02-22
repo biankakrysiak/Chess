@@ -48,14 +48,19 @@ def main():
                     if selected == (row, col):
                         selected = None
                     else:
-                        move = Move(selected, (row, col), gs.board)
                         validMoves = gs.getAllPossibleMoves()
-                        if move in validMoves:
-                            gs.makeMove(move)
-                            if move.promotionPending:
-                                promotionPiece = choosePromotion(screen, move, gs.whiteToMove)
-                                gs.board[move.endRow][move.endCol] = promotionPiece
-                            print(move)
+                        clickedMove = None
+                        for m in validMoves:
+                            if m.startRow == selected[0] and m.startCol == selected[1] and \
+                               m.endRow == row and m.endCol == col:
+                                clickedMove = m
+                                break
+                        if clickedMove:
+                            gs.makeMove(clickedMove)
+                            if clickedMove.promotionPending:
+                                promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove)
+                                gs.board[clickedMove.endRow][clickedMove.endCol] = promotionPiece
+                            print(clickedMove)
                         selected = None
 
             drawGameState(screen, gs)
