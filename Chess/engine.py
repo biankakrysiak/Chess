@@ -5,14 +5,14 @@ from move import Move
 class ChessEngine:
     def __init__(self):
         self.board = [
-            ['bR', 'bN', 'bB', 'bK', 'bQ', 'bB', 'bN', 'bR'],
+            ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
              ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
              ['--', '--','--', '--','--', '--','--', '--'],
              ['--', '--','--', '--','--', '--','--', '--'],
              ['--', '--','--', '--','--', '--','--', '--'],
              ['--', '--','--', '--','--', '--','--', '--'],
              ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
-             ['wR', 'wN', 'wB', 'wK', 'wQ', 'wB', 'wN', 'wR']
+             ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
         ]
         self.whiteToMove = True
         self.moveLog = []
@@ -66,6 +66,10 @@ class ChessEngine:
                     self.blackKingsRookMoved = True
                 else:
                     self.blackQueensRookMoved = True        
+        # pawn promotion
+        if move.pieceMoved[1] == "P" and (move.endRow == 0 or move.endRow == 7):
+            move.promotionPending = True
+            
         
         self.whiteToMove = not self.whiteToMove
 
