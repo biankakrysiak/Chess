@@ -52,6 +52,9 @@ def main():
                         validMoves = gs.getAllPossibleMoves()
                         if move in validMoves:
                             gs.makeMove(move)
+                            if move.promotionPending:
+                                promotionPiece = choosePromotion(screen, move, gs.whiteToMove)
+                                gs.board[move.endRow][move.endCol] = promotionPiece
                             print(move)
                         selected = None
 
@@ -81,5 +84,36 @@ def drawPieces(screen, board):
             if piece != '--':
                 screen.blit(IMAGES[piece], p.Rect(c*SQR_SIZE, r*SQR_SIZE, SQR_SIZE, SQR_SIZE))
 
+def choosePromotion(screen, move, whiteToMove):
+    row, col = move.endRow, move.endCol
+    squareX = col * SQR_SIZE
+    squareY = row * SQR_SIZE
+    
+    pieces = ["Q", "R", "B", "N"]
+    color = "b" if whiteToMove else "w"
+   
+    rects = []
+    for i, pType in enumerate(pieces):
+        r = i // 2  # row 0 or 1
+        c = i % 2   # column 0 or 1
+        rectWidth = SQR_SIZE // 2
+        rectHeight = SQR_SIZE // 2
+        rectX = squareX + c * rectWidth
+        rectY = squareY + r * rectHeight
+        rect = p.Rect(rectX, rectY, rectWidth, rectHeight)
+        img = p.transform.scale(IMAGES[color+pType], (rectWidth, rectHeight))
+        screen.blit(img, rect)
+        rects.append((rect, color+pType))
+    p.display.flip()
+    
+    choosing = True
+    while choosing:
+        for e in p.event.get():
+            if e.type == p.MOUSEBUTTONDOWN and e.button == 1:
+                x, y = e.pos
+                for rect, piece in rects:
+                    if rect.collidepoint(x, y):
+                        return piece
+                    
 if __name__ == "__main__":
     main()
