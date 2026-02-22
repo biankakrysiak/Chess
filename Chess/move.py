@@ -8,6 +8,8 @@ class Move:
         self.pieceMoved = board[self.startRow][self.startCol]
         self.pieceCaptured = board[self.endRow][self.endCol]
 
+        self.promotionPending = False
+        
         # compare 1 integer instead of 4, faster
         self.moveID = (
             self.startRow * 1000 +
