@@ -10,6 +10,10 @@ class Move:
 
         self.promotionPending = False
         self.enPassant = enPassant
+
+        if enPassant:
+            self.pieceCaptured = board[self.startRow][self.endCol]
+
         
         # compare 1 integer instead of 4, faster
         self.moveID = (
