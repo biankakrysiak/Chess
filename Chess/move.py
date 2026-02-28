@@ -13,6 +13,7 @@ class Move:
         self.pieceCaptured = board[self.endRow][self.endCol]
 
         self.promotionPending = False
+        self.promotionPiece = None
         self.enPassant = enPassant
         self.isCastle = False
 
@@ -41,9 +42,9 @@ class Move:
         suffix = '#' if isCheckmate else ('+' if isCheck else '')
         if self.isCastle:
             if self.endCol == 6:
-                return '0-0' + suffix
+                return 'O-O' + suffix
             else:
-                return '0-0-0' + suffix
+                return 'O-O-O' + suffix
             
         capture = ''
         if self.pieceCaptured != '--' or self.enPassant:
@@ -51,7 +52,11 @@ class Move:
             if piece == 'P':
                 capture = self.colsToFiles[self.startCol] + 'x'
         pieceStr = '' if piece == 'P' else piece
-        return f"{pieceStr}{disambig}{capture}{file}{rank}{suffix}"
+        promotion = ''
+        if self.promotionPending and self.promotionPiece:
+            promotion = '=' + self.promotionPiece[1]
+        
+        return f"{pieceStr}{disambig}{capture}{file}{rank}{promotion}{suffix}"
 
 
 '''
