@@ -91,6 +91,7 @@ def main():
                             if clickedMove.promotionPending:
                                 promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove)
                                 gs.board[clickedMove.endRow][clickedMove.endCol] = promotionPiece
+                                clickedMove.promotionPiece = promotionPiece
 
                             validMoves = gs.getValidMoves()
                             notation = gs.getMoveNotation(clickedMove)
@@ -120,6 +121,7 @@ def drawGameState(screen, gs, selected, validMoves):
     drawBoard(screen)
     drawHighlights(screen, gs, selected, validMoves)
     drawPieces(screen, gs.board)
+    drawCoordinates(screen)
 
 def drawBoard(screen):
     colors = [p.Color("white"), p.Color("gray")]
@@ -266,6 +268,27 @@ def drawPanel(screen, moveHistory, scrollOffset):
         thumb_height = max(20, int(track_height * thumb_ratio))
         thumb_pos = HEADER_HEIGHT + int((scrollOffset / total_lines) * track_height)
         p.draw.rect(screen, p.Color(150, 150, 150), p.Rect(track_x, thumb_pos, 8, thumb_height), border_radius=4)
+
+def drawCoordinates(screen):
+    font = p.font.SysFont('consolas', 10, bold=True)
+    files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    ranks = ['8', '7', '6', '5', '4', '3', '2', '1']
+
+    for i in range(DIMENSION):
+        # color contrast to file color
+        on_light = (i % 2 == 0)
+        color_on_light = p.Color(100, 90, 70)
+        color_on_dark  = p.Color("white")
+
+        # numbers down right, from col = 0 every column
+        rank_color = color_on_light if on_light else color_on_dark
+        rank_label = font.render(ranks[i], True, rank_color)
+        screen.blit(rank_label, (1, i * SQR_SIZE + 1))
+
+        # letters up left, from row = 0 every row
+        file_color = color_on_dark if on_light else color_on_light
+        file_label = font.render(files[i], True, file_color)
+        screen.blit(file_label, (i * SQR_SIZE + SQR_SIZE - 7, HEIGHT - 11))
 
 if __name__ == "__main__":
     main()
