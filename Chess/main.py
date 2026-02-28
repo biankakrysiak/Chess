@@ -61,6 +61,13 @@ def main():
                                 promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove)
                                 gs.board[clickedMove.endRow][clickedMove.endCol] = promotionPiece
                             print(clickedMove)
+
+                            validMoves = gs.getValidMoves()
+                            if gs.checkmate:
+                                print("Checkmate")
+                            elif gs.stalemate:
+                                print("Stalemate")
+
                         selected = None
 
             drawGameState(screen, gs)

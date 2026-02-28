@@ -26,6 +26,8 @@ class ChessEngine:
         self.whiteKingPos = (7,4)
         self.blackKingPos = (0,4)
         self.checkingAttack = False
+        self.checkmate = False
+        self.stalemate = False
 
     def makeMove(self, move):
         self.board[move.startRow][move.startCol] = "--"
@@ -206,18 +208,22 @@ class ChessEngine:
             if not self.whiteKingMoved:
                 # Kingside
                 if not self.whiteKingsRookMoved and self.board[7][5] == "--" and self.board[7][6] == "--":
-                    moves.append(Move((7, 4), (7, 6), self.board))  # king moves 2 squares
+                    if not self.isSquareAttacked(7, 5, byWhite=attackerIsWhite) and not self.isSquareAttacked(7, 6, byWhite=attackerIsWhite):
+                        moves.append(Move((7, 4), (7, 6), self.board))  # king moves 2 squares
                 # Queenside
                 if not self.whiteQueensRookMoved and self.board[7][1] == "--" and self.board[7][2] == "--" and self.board[7][3] == "--":
-                    moves.append(Move((7, 4), (7, 2), self.board))
+                    if not self.isSquareAttacked(7, 3, byWhite=attackerIsWhite) and not self.isSquareAttacked(7, 2, byWhite=attackerIsWhite):
+                        moves.append(Move((7, 4), (7, 2), self.board))
         else:
             if not self.blackKingMoved:
                 # Kingside
                 if not self.blackKingsRookMoved and self.board[0][5] == "--" and self.board[0][6] == "--":
-                    moves.append(Move((0, 4), (0, 6), self.board))
+                    if not self.isSquareAttacked(0, 5, byWhite=attackerIsWhite) and not self.isSquareAttacked(0, 6, byWhite=attackerIsWhite):
+                        moves.append(Move((0, 4), (0, 6), self.board))
                 # Queenside
                 if not self.blackQueensRookMoved and self.board[0][1] == "--" and self.board[0][2] == "--" and self.board[0][3] == "--":
-                    moves.append(Move((0, 4), (0, 2), self.board))
+                    if not self.isSquareAttacked(0, 3, byWhite=attackerIsWhite) and not self.isSquareAttacked(0, 2, byWhite=attackerIsWhite):
+                        moves.append(Move((0, 4), (0, 2), self.board))
 
     # checks section
     def getValidMoves(self):
@@ -230,7 +236,11 @@ class ChessEngine:
         validMoves = []
         for move in moves:
             self.makeMove(move)
-            if not self.inCheck():
+            if not self.whiteToMove: # white moved
+                inCheck = self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
+            else:  # black moved
+                inCheck = self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
+            if not inCheck:
                 validMoves.append(move)
             self.undoMove()
             # restore flags after each undo
@@ -238,6 +248,20 @@ class ChessEngine:
              self.whiteKingsRookMoved, self.whiteQueensRookMoved,
              self.blackKingsRookMoved, self.blackQueensRookMoved,
              self.enPassantTarget) = savedFlags
+            
+        if len(validMoves) == 0:
+            if self.whiteToMove:
+                inCheck = self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
+            else:
+                inCheck = self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
+
+            if inCheck:
+                self.checkmate = True
+            else:
+                self.stalemate = True
+        else:
+            self.checkmate = False
+            self.stalemate = False
 
         return validMoves
     
