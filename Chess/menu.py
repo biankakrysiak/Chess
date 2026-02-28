@@ -178,6 +178,7 @@ def drawMenu(state):
     p.display.flip()
     return startRect, modeRects, timeRects, colorRects
 
+
 def getHover(mx, my, modeRects, timeRects, colorRects, startRect):
     for key, rect in modeRects.items():
         if rect.collidepoint(mx, my):
