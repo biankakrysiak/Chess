@@ -25,6 +25,7 @@ def main():
     #print(gs.board)
     loadImages()
     selected = None
+    validMoves = []
     running = True
     moveNr = 1
     columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -43,12 +44,14 @@ def main():
                         piece = gs.board[row][col]
                         if (gs.whiteToMove and piece[0] == 'w') or (not gs.whiteToMove and piece[0] == 'b'):
                             selected = (row, col)
+                            validMoves = gs.getValidMoves()
 
                 else:
                     if selected == (row, col):
                         selected = None
+                        validMoves = []
                     else:
-                        validMoves = gs.getValidMoves()
+                        #validMoves = gs.getValidMoves()
                         clickedMove = None
                         for m in validMoves:
                             if m.startRow == selected[0] and m.startCol == selected[1] and \
@@ -69,17 +72,18 @@ def main():
                                 print("Stalemate")
 
                         selected = None
+                        validMoves = []
 
-            drawGameState(screen, gs)
+            drawGameState(screen, gs, selected, validMoves)
             clock.tick(fps)
             p.display.flip()
             #print(gs.board)
             #print(gs.moveLog)
             
 
-def drawGameState(screen, gs):
+def drawGameState(screen, gs, selected, validMoves):
     drawBoard(screen)
-    # add highlights or move suggestions
+    drawHighlights(screen, gs, selected, validMoves)
     drawPieces(screen, gs.board)
 
 def drawBoard(screen):
@@ -126,6 +130,54 @@ def choosePromotion(screen, move, whiteToMove):
                 for rect, piece in rects:
                     if rect.collidepoint(x, y):
                         return piece
-                    
+
+def drawHighlights(screen, gs, selected, validMoves):
+    if gs.whiteToMove:
+        kr, kc = gs.whiteKingPos
+    else:
+        kr, kc = gs.blackKingPos
+    
+    if gs.isSquareAttacked(kr, kc, byWhite=not gs.whiteToMove):
+        layers = [
+            (0, (200, 60, 60, 160)),
+            (1, (220, 90, 90, 110)),
+            (2, (240, 120, 120, 60)),
+            (3, (255, 150, 150, 25)),
+        ]
+        for offset, (r, g, b, a) in layers:
+            s = p.Surface((SQR_SIZE - offset*2, SQR_SIZE - offset*2), p.SRCALPHA)
+            p.draw.rect(s, (r, g, b, a), s.get_rect(), 3)
+            screen.blit(s, (kc * SQR_SIZE + offset, kr * SQR_SIZE + offset))
+
+    
+    if selected is None:
+        return
+    
+    dotColor = p.Color(100, 100, 100, 100)
+    cornerColor = p.Color(100, 100, 100)
+    cornerSize = SQR_SIZE // 6
+    m = 1
+    
+    for move in validMoves:
+        if move.startRow == selected[0] and move.startCol == selected[1]:
+            col = move.endCol
+            row = move.endRow
+            x = col * SQR_SIZE
+            y = row * SQR_SIZE
+            w = SQR_SIZE - 2 * m
+            centerX = col * SQR_SIZE + SQR_SIZE // 2
+            centerY = row * SQR_SIZE + SQR_SIZE // 2
+            if gs.board[row][col] == '--':
+                p.draw.circle(screen, dotColor, (centerX, centerY), SQR_SIZE // 6)
+            else:
+                # left up
+                p.draw.polygon(screen, cornerColor, [(x, y), (x + cornerSize, y), (x, y + cornerSize)])
+                # right up
+                p.draw.polygon(screen, cornerColor, [(x + w, y), (x + w - cornerSize, y), (x + w, y + cornerSize)])
+                # left down
+                p.draw.polygon(screen, cornerColor, [(x, y + w), (x + cornerSize, y + w), (x, y + w - cornerSize)])
+                # right down
+                p.draw.polygon(screen, cornerColor, [(x + w, y + w), (x + w - cornerSize, y + w), (x + w, y + w - cornerSize)])
+
 if __name__ == "__main__":
     main()
