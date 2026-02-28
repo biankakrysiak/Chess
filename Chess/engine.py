@@ -55,6 +55,7 @@ class ChessEngine:
 
         # handle castling
         if move.pieceMoved[1] == 'K' and abs(move.endCol - move.startCol) == 2:
+            move.isCastle = True
             if move.endCol == 6:  # kingside
                 rookStartCol = 7
                 rookEndCol = 5
@@ -314,4 +315,34 @@ class ChessEngine:
         if move.enPassant:
             self.board[move.endRow][move.endCol] = "--"
             self.board[move.startRow][move.endCol] = move.pieceCaptured  # restore captured pawn
-            
+
+    # notation 
+    def getMoveNotation(self, move):
+    # check / mate checker
+        isCheckmate = self.checkmate
+        isCheck = False
+        if not isCheckmate:
+            if self.whiteToMove:
+                isCheck = self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
+            else:
+                isCheck = self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
+
+        # disambiguation - if two pieces of the same type can move to the same square        disambig = ''
+        disambig = ''
+        if move.pieceMoved[1] not in ('P', 'K'):
+            ambiguous = []
+            for m in self.getAllPossibleMoves():
+                if m != move and m.pieceMoved == move.pieceMoved and \
+                   m.endRow == move.endRow and m.endCol == move.endCol:
+                    ambiguous.append(m)
+            if ambiguous:
+                sameCol = any(m.startCol == move.startCol for m in ambiguous)
+                sameRow = any(m.startRow == move.startRow for m in ambiguous)
+                if not sameCol:
+                    disambig = Move.colsToFiles[move.startCol]
+                elif not sameRow:
+                    disambig = Move.rowsToRanks[move.startRow]
+                else:
+                    disambig = Move.colsToFiles[move.startCol] + Move.rowsToRanks[move.startRow]
+
+        return move.getNotation(isCheck, isCheckmate, disambig)

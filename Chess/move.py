@@ -1,4 +1,8 @@
 class Move:
+    rowsToRanks = {7: '1', 6: '2', 5: '3', 4: '4', 3: '5', 2: '6', 1: '7', 0: '8'}
+    colsToFiles = {0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g', 7: 'h'}
+    pieceToNotation = {'K': 'K', 'Q': 'Q', 'R': 'R', 'B': 'B', 'N': 'N', 'P': ''}
+
     def __init__(self, startSq, endSq, board, enPassant=False):
         self.startRow = startSq[0]
         self.startCol = startSq[1]
@@ -10,6 +14,7 @@ class Move:
 
         self.promotionPending = False
         self.enPassant = enPassant
+        self.isCastle = False
 
         if enPassant:
             self.pieceCaptured = board[self.startRow][self.endCol]
@@ -29,6 +34,25 @@ class Move:
     def __str__(self):
         return f"{self.pieceMoved}: ({self.startRow},{self.startCol}) -> ({self.endRow},{self.endCol})"
     
+    def getNotation(self, isCheck=False, isCheckmate=False, disambig=''):
+        file = self.colsToFiles[self.endCol]
+        rank = self.rowsToRanks[self.endRow]
+        piece = self.pieceMoved[1]
+        suffix = '#' if isCheckmate else ('+' if isCheck else '')
+        if self.isCastle:
+            if self.endCol == 6:
+                return '0-0' + suffix
+            else:
+                return '0-0-0' + suffix
+            
+        capture = ''
+        if self.pieceCaptured != '--' or self.enPassant:
+            capture = 'x'
+            if piece == 'P':
+                capture = self.colsToFiles[self.startCol] + 'x'
+        pieceStr = '' if piece == 'P' else piece
+        return f"{pieceStr}{disambig}{capture}{file}{rank}{suffix}"
+
 
 '''
 moveID xample
