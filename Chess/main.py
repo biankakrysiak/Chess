@@ -48,7 +48,7 @@ def main():
                     if selected == (row, col):
                         selected = None
                     else:
-                        validMoves = gs.getAllPossibleMoves()
+                        validMoves = gs.getValidMoves()
                         clickedMove = None
                         for m in validMoves:
                             if m.startRow == selected[0] and m.startCol == selected[1] and \
