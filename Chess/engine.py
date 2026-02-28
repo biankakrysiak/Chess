@@ -23,7 +23,10 @@ class ChessEngine:
         self.blackKingsRookMoved = False
         self.blackQueensRookMoved = False
         self.enPassantTarget = None
-        
+        self.whiteKingPos = (7,4)
+        self.blackKingPos = (0,4)
+        self.checkingAttack = False
+
     def makeMove(self, move):
         self.board[move.startRow][move.startCol] = "--"
         self.board[move.endRow][move.endCol] = move.pieceMoved
@@ -33,8 +36,10 @@ class ChessEngine:
         # update king rook moved flags, for castling
         if move.pieceMoved == 'wK':
             self.whiteKingMoved = True
+            self.whiteKingPos = (move.endRow, move.endCol)
         elif move.pieceMoved == 'bK':
             self.blackKingMoved = True
+            self.blackKingPos = (move.endRow, move.endCol)
         elif move.pieceMoved == 'wR':
             if move.startRow == 7 and move.startCol == 0:
                 self.whiteQueensRookMoved = True
@@ -189,9 +194,14 @@ class ChessEngine:
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1),  # straight
               (-1, -1), (-1, 1), (1, -1), (1, 1)] # diagonal
         self.pieceMoves(directions, r, c, moves, slide=False) 
-        self.getCastleMoves(r, c, moves)
+        if not self.checkingAttack:    
+            self.getCastleMoves(r, c, moves)
 
     def getCastleMoves(self, r, c, moves):
+        attackerIsWhite = not self.whiteToMove
+        if self.isSquareAttacked(r, c, byWhite=attackerIsWhite):
+            return
+        
         if self.whiteToMove:
             if not self.whiteKingMoved:
                 # Kingside
@@ -208,3 +218,76 @@ class ChessEngine:
                 # Queenside
                 if not self.blackQueensRookMoved and self.board[0][1] == "--" and self.board[0][2] == "--" and self.board[0][3] == "--":
                     moves.append(Move((0, 4), (0, 2), self.board))
+
+    # checks section
+    def getValidMoves(self):
+    # save state that undoMove can't restore
+        savedFlags = (self.whiteKingMoved, self.blackKingMoved,
+                      self.whiteKingsRookMoved, self.whiteQueensRookMoved,
+                      self.blackKingsRookMoved, self.blackQueensRookMoved,
+                      self.enPassantTarget)
+        moves = self.getAllPossibleMoves()
+        validMoves = []
+        for move in moves:
+            self.makeMove(move)
+            if not self.inCheck():
+                validMoves.append(move)
+            self.undoMove()
+            # restore flags after each undo
+            (self.whiteKingMoved, self.blackKingMoved,
+             self.whiteKingsRookMoved, self.whiteQueensRookMoved,
+             self.blackKingsRookMoved, self.blackQueensRookMoved,
+             self.enPassantTarget) = savedFlags
+
+        return validMoves
+    
+    def isSquareAttacked(self, r, c, byWhite):
+        savedTurn = self.whiteToMove
+        self.whiteToMove = byWhite # generate attacker moves
+        self.checkingAttack = True
+        attackerMoves = self.getAllPossibleMoves()
+        self.checkingAttack = False
+        self.whiteToMove = savedTurn # undo
+
+        for move in attackerMoves:
+            if move.endRow == r and move.endCol == c:
+                return True
+        return False
+
+    def inCheck(self):
+        if self.whiteToMove:
+            # white moved = black move = does white attack the black king
+            return self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
+        else:
+            return self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
+
+    def undoMove(self):
+        if len(self.moveLog) == 0:
+            return
+
+        move = self.moveLog.pop()
+
+        self.board[move.startRow][move.startCol] = move.pieceMoved
+        self.board[move.endRow][move.endCol] = move.pieceCaptured
+
+        self.whiteToMove = not self.whiteToMove
+
+        if move.pieceMoved == "wK":
+            self.whiteKingPos = (move.startRow, move.startCol)
+        elif move.pieceMoved == "bK":
+            self.blackKingPos = (move.startRow, move.startCol)
+
+        # undo castling
+        if move.pieceMoved[1] == 'K' and abs(move.endCol - move.startCol) == 2:
+            if move.endCol == 6:  # kingside
+                self.board[move.endRow][7] = self.board[move.endRow][5]
+                self.board[move.endRow][5] = "--"
+            else:  # queenside
+                self.board[move.endRow][0] = self.board[move.endRow][3]
+                self.board[move.endRow][3] = "--"
+
+        # undo en passant
+        if move.enPassant:
+            self.board[move.endRow][move.endCol] = "--"
+            self.board[move.startRow][move.endCol] = move.pieceCaptured  # restore captured pawn
+            
