@@ -5,6 +5,8 @@ from datetime import datetime
 import engine
 from move import Move
 import menu
+from bot import createBot
+import random
 
 WIDTH = 512
 HEIGHT = 512
@@ -66,6 +68,12 @@ def main():
     lastTick = p.time.get_ticks()
     gameOver = False
     showDrawOffer = False
+
+    bot = None
+    if mode in ('easy', 'medium', 'hard'):
+        botIsWhite = not playerIsWhite
+        bot = createBot(mode, botIsWhite)
+    botMoveTime = None
 
     running = True
     while running:
@@ -235,6 +243,41 @@ def main():
 
                         selected = None
                         validMoves = []
+            # bot move
+            if not gameOver and bot is not None:
+                if gs.whiteToMove == bot.playAsWhite:
+                    now = p.time.get_ticks()
+                    if botMoveTime is None:
+                        botMoveTime = now + random.randint(200, 400)
+                    elif now >= botMoveTime:
+                        botMoveTime = None
+                        botMove = bot.getMove(gs)
+                        if botMove:
+                            gs.makeMove(botMove)
+                            if gs.whiteToMove:
+                                blackTime += increment
+                            else:
+                                whiteTime += increment
+                            if botMove.promotionPending and not botMove.promotionPiece:
+                                color = 'b' if not gs.whiteToMove else 'w'
+                                gs.board[botMove.endRow][botMove.endCol] = color + 'Q'
+                                botMove.promotionPiece = color + 'Q'
+                            notation = gs.getMoveNotation(botMove)
+                            moveHistory.append(notation)
+                            validMoves = gs.getValidMoves()
+                            viewIndex = len(gs.moveLog)
+                            scrollOffset = max(0, (len(moveHistory)+1) // 2 - VISIBLE_LINES)
+                            if gs.checkmate:
+                                if moveHistory:
+                                    last = moveHistory[-1]
+                                    if not last.endswith('#'):
+                                        moveHistory[-1] = last.rstrip('+') + '#'
+                                winner = 'Black' if gs.whiteToMove else 'White'
+                                triggerGameOver(winner, 'by checkmate')
+                            elif gs.stalemate:
+                                triggerGameOver('Draw', 'by stalemate')
+                else:
+                    botMoveTime = None 
 
         if viewMode:
             displayBoard = gs.getBoardAtMove(viewIndex)
@@ -266,14 +309,6 @@ def main():
             drawGameOverPopup(screen, gameOverResult)
         clock.tick(fps)
         p.display.flip()
-        #print(gs.board)
-        #print(gs.moveLog)
-    
-def drawGameState(screen, gs, selected, validMoves, flipped):
-    drawBoard(screen, flipped)
-    drawHighlights(screen, gs, selected, validMoves, flipped)
-    drawPieces(screen, gs.board, flipped)
-    drawCoordinates(screen, flipped)
 
 def drawBoard(screen, flipped=False):
     colors = [p.Color("white"), p.Color("gray")]
