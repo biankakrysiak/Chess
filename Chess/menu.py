@@ -1,4 +1,4 @@
-import pygame as p
+import pygame as p # type: ignore
 import sys
 
 p.init()
@@ -39,7 +39,7 @@ TIME_CONTROLS = [
 class MenuState:
     def __init__(self):
         self.selectedMode  = None
-        self.selectedTime  = 5
+        self.selectedTime  = None
         self.selectedColor = 'random'
         self.hovered       = None
 
@@ -161,7 +161,7 @@ def drawMenu(state):
 
     # START
     startRect = p.Rect(32, y, WIDTH - 64, 50)
-    canStart  = state.selectedMode is not None
+    canStart = state.selectedMode is not None and state.selectedTime is not None
     sc = BTN_SEL if canStart else p.Color(55, 55, 55)
     sb = BORDER_SEL if canStart else BORDER
     if state.hovered == ('start',) and canStart:
@@ -170,11 +170,16 @@ def drawMenu(state):
     p.draw.rect(screen, sc, startRect, border_radius=3)
     p.draw.rect(screen, sb, startRect, width=2, border_radius=3)
 
-    st  = "SELECT A MODE TO START" if not canStart else "START GAME"
+    if state.selectedMode is None and state.selectedTime is None:
+        st = "SELECT MODE AND TIME TO START"
+    elif state.selectedMode is None:
+        st = "SELECT A GAME MODE TO START"
+    elif state.selectedTime is None:
+        st = "SELECT TIME CONTROL TO START"
+    else:
+        st = "START GAME"    
     lbl = FONT_LARGE.render(st, True, stc)
-    screen.blit(lbl, (startRect.centerx - lbl.get_width() // 2,
-                      startRect.centery - lbl.get_height() // 2))
-
+    screen.blit(lbl, (startRect.centerx - lbl.get_width() // 2, startRect.centery - lbl.get_height() // 2))
     p.display.flip()
     return startRect, modeRects, timeRects, colorRects
 
@@ -220,7 +225,7 @@ def main():
                     state.selectedTime = h[1]
                 elif h[0] == 'color':
                     state.selectedColor = h[1]
-                elif h[0] == 'start' and state.selectedMode:
+                elif h[0] == 'start' and state.selectedMode and state.selectedTime is not None:
                     td = TIME_CONTROLS[state.selectedTime]
                     return {
                         'mode':      state.selectedMode,
