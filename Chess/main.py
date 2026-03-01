@@ -59,7 +59,6 @@ def main():
     if settings['color'] == 'black':
         playerIsWhite = False
     elif settings['color'] == 'random':
-        import random
         playerIsWhite = random.choice([True, False])
 
     flipped = not playerIsWhite
@@ -248,7 +247,7 @@ def main():
                 if gs.whiteToMove == bot.playAsWhite:
                     now = p.time.get_ticks()
                     if botMoveTime is None:
-                        botMoveTime = now + random.randint(200, 400)
+                        botMoveTime = now + random.randint(200, 300)
                     elif now >= botMoveTime:
                         botMoveTime = None
                         botMove = bot.getMove(gs)
