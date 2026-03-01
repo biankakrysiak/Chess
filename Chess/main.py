@@ -2,6 +2,7 @@
 import pygame as p # type: ignore
 import engine
 from move import Move
+import menu
 
 WIDTH = 512
 HEIGHT = 512
@@ -11,7 +12,7 @@ SQR_SIZE = HEIGHT // DIMENSION
 HEADER_HEIGHT = 35
 LINE_HEIGHT = 22
 VISIBLE_LINES = (HEIGHT - HEADER_HEIGHT)//LINE_HEIGHT
-fps = 15  # animations tbd
+fps = 60  
 IMAGES = {}
 
 def loadImages():
@@ -22,6 +23,8 @@ def loadImages():
 
 def main():
     p.init()
+    settings = menu.main()
+    
     screen = p.display.set_mode((WIDTH + PANEL_WIDTH, HEIGHT))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
@@ -30,12 +33,47 @@ def main():
     loadImages()
     selected = None
     validMoves = []
-    running = True
     moveHistory = []
     scrollOffset = 0
     scrollDragging = False
+    
+    mode = settings['mode']
+    baseTime = settings['baseTime']
+    increment = settings['increment']
+    
+    playerIsWhite = True
+    if settings['color'] == 'black':
+        playerIsWhite = False
+    elif settings['color'] == 'random':
+        import random
+        playerIsWhite = random.choice([True, False])
 
+    flipped = not playerIsWhite
+    whiteTime = float(baseTime)
+    blackTime = float(baseTime)
+    lastTick = p.time.get_ticks()
+    gameOver = False
+
+    running = True
     while running:
+        # tick clock
+        now = p.time.get_ticks()
+        dt = (now - lastTick) / 1000.0
+        lastTick = now
+        if not gameOver:
+            if gs.whiteToMove:
+                whiteTime -= dt
+                if whiteTime <= 0:
+                    whiteTime = 0
+                    gameOver = True
+                    print("Black wins on time")
+            else:
+                blackTime -= dt
+                if blackTime <= 0:
+                    blackTime = 0
+                    gameOver = True
+                    print("White wins on time")
+        
         for e in p.event.get():
             if e.type == p.QUIT:
                 running = False
@@ -55,6 +93,8 @@ def main():
                         scrollOffset = int(ratio * total_lines)
                         scrollOffset = max(0, min(scrollOffset, total_lines - VISIBLE_LINES))
             elif e.type == p.MOUSEBUTTONDOWN and e.button == 1:
+                if gameOver:
+                    continue
                 x, y = e.pos
                 if x >= WIDTH + PANEL_WIDTH - 12:  # scrollbar click
                     scrollDragging = True
@@ -63,14 +103,23 @@ def main():
                     continue
                 col = x // SQR_SIZE
                 row = y // SQR_SIZE
+                if flipped:
+                    col = 7 - col
+                    row = 7 - row
+
                 if row < 0 or row >= DIMENSION or col < 0 or col >= DIMENSION:
                     continue
 
                 # first click
-                if selected is None: 
+                if selected is None:
                     if gs.board[row][col] != '--':
                         piece = gs.board[row][col]
-                        if (gs.whiteToMove and piece[0] == 'w') or (not gs.whiteToMove and piece[0] == 'b'):
+                        if mode == 'local':
+                            canMove = (gs.whiteToMove and piece[0] == 'w') or (not gs.whiteToMove and piece[0] == 'b')
+                        else:
+                            canMove = (gs.whiteToMove == playerIsWhite) and \
+                                      ((playerIsWhite and piece[0] == 'w') or (not playerIsWhite and piece[0] == 'b'))
+                        if canMove:
                             selected = (row, col)
                             validMoves = gs.getValidMoves()
 
@@ -88,8 +137,13 @@ def main():
                                 break
                         if clickedMove:
                             gs.makeMove(clickedMove)
+                            if gs.whiteToMove:
+                                blackTime += increment
+                            else:
+                                whiteTime += increment
+
                             if clickedMove.promotionPending:
-                                promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove)
+                                promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove, flipped)
                                 gs.board[clickedMove.endRow][clickedMove.endCol] = promotionPiece
                                 clickedMove.promotionPiece = promotionPiece
 
@@ -108,39 +162,47 @@ def main():
                         selected = None
                         validMoves = []
 
-            drawGameState(screen, gs, selected, validMoves)
-            drawPanel(screen, moveHistory, scrollOffset)
-            clock.tick(fps)
-            p.display.flip()
-            #print(gs.board)
-            #print(gs.moveLog)
+        drawGameState(screen, gs, selected, validMoves, flipped)
+        drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped)
+        clock.tick(fps)
+        p.display.flip()
+        #print(gs.board)
+        #print(gs.moveLog)
     
             
 
-def drawGameState(screen, gs, selected, validMoves):
-    drawBoard(screen)
-    drawHighlights(screen, gs, selected, validMoves)
-    drawPieces(screen, gs.board)
-    drawCoordinates(screen)
+def drawGameState(screen, gs, selected, validMoves, flipped):
+    drawBoard(screen, flipped)
+    drawHighlights(screen, gs, selected, validMoves, flipped)
+    drawPieces(screen, gs.board, flipped)
+    drawCoordinates(screen, flipped)
 
-def drawBoard(screen):
+def drawBoard(screen, flipped=False):
     colors = [p.Color("white"), p.Color("gray")]
     for r in range(DIMENSION):
         for c in range(DIMENSION):
-            color = colors[((r+c)%2)]
-            p.draw.rect(screen, color, p.Rect(c*SQR_SIZE, r*SQR_SIZE, SQR_SIZE, SQR_SIZE))
+            dr = 7 - r if flipped else r
+            dc = 7 - c if flipped else c
+            color = colors[((r + c) % 2)]
+            p.draw.rect(screen, color, p.Rect(dc * SQR_SIZE, dr * SQR_SIZE, SQR_SIZE, SQR_SIZE))
 
-def drawPieces(screen, board):
+def drawPieces(screen, board, flipped=False):
     for r in range(DIMENSION):
         for c in range(DIMENSION):
             piece = board[r][c]
             if piece != '--':
-                screen.blit(IMAGES[piece], p.Rect(c*SQR_SIZE, r*SQR_SIZE, SQR_SIZE, SQR_SIZE))
+                dr = 7 - r if flipped else r
+                dc = 7 - c if flipped else c
+                screen.blit(IMAGES[piece], p.Rect(dc * SQR_SIZE, dr * SQR_SIZE, SQR_SIZE, SQR_SIZE))
 
-def choosePromotion(screen, move, whiteToMove):
+def choosePromotion(screen, move, whiteToMove, flipped=False):
     row, col = move.endRow, move.endCol
-    squareX = col * SQR_SIZE
-    squareY = row * SQR_SIZE
+    
+    dr = 7 - row if flipped else row
+    dc = 7 - col if flipped else col
+    
+    squareX = dc * SQR_SIZE
+    squareY = dr * SQR_SIZE
     
     pieces = ["Q", "R", "B", "N"]
     color = "b" if whiteToMove else "w"
@@ -168,13 +230,19 @@ def choosePromotion(screen, move, whiteToMove):
                     if rect.collidepoint(x, y):
                         return piece
 
-def drawHighlights(screen, gs, selected, validMoves):
+def drawHighlights(screen, gs, selected, validMoves, flipped=False):
+    def sq(r, c):  # convert board coords to screen coords
+        dr = 7 - r if flipped else r
+        dc = 7 - c if flipped else c
+        return dr, dc
+
     if gs.whiteToMove:
         kr, kc = gs.whiteKingPos
     else:
         kr, kc = gs.blackKingPos
-    
+
     if gs.isSquareAttacked(kr, kc, byWhite=not gs.whiteToMove):
+        dr, dc = sq(kr, kc)
         layers = [
             (0, (200, 60, 60, 160)),
             (1, (220, 90, 90, 110)),
@@ -184,27 +252,25 @@ def drawHighlights(screen, gs, selected, validMoves):
         for offset, (r, g, b, a) in layers:
             s = p.Surface((SQR_SIZE - offset*2, SQR_SIZE - offset*2), p.SRCALPHA)
             p.draw.rect(s, (r, g, b, a), s.get_rect(), 3)
-            screen.blit(s, (kc * SQR_SIZE + offset, kr * SQR_SIZE + offset))
+            screen.blit(s, (dc * SQR_SIZE + offset, dr * SQR_SIZE + offset))
 
-    
     if selected is None:
         return
-    
-    dotColor = p.Color(100, 100, 100, 100)
+
+    dotColor   = p.Color(100, 100, 100, 100)
     cornerColor = p.Color(100, 100, 100)
-    cornerSize = SQR_SIZE // 6
+    cornerSize  = SQR_SIZE // 6
     m = 1
-    
+
     for move in validMoves:
         if move.startRow == selected[0] and move.startCol == selected[1]:
-            col = move.endCol
-            row = move.endRow
-            x = col * SQR_SIZE
-            y = row * SQR_SIZE
+            dr, dc = sq(move.endRow, move.endCol)
+            x = dc * SQR_SIZE
+            y = dr * SQR_SIZE
             w = SQR_SIZE - 2 * m
-            centerX = col * SQR_SIZE + SQR_SIZE // 2
-            centerY = row * SQR_SIZE + SQR_SIZE // 2
-            if gs.board[row][col] == '--':
+            centerX = x + SQR_SIZE // 2
+            centerY = y + SQR_SIZE // 2
+            if gs.board[move.endRow][move.endCol] == '--':
                 p.draw.circle(screen, dotColor, (centerX, centerY), SQR_SIZE // 6)
             else:
                 # left up
@@ -225,28 +291,53 @@ def buildPGN(moveHistory):
             pgn += f"{move} "
     return pgn.strip()
 
-def drawPanel(screen, moveHistory, scrollOffset):
+def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=None, flipped=False):
     panelX = WIDTH
     p.draw.rect(screen, p.Color(50, 50, 50), p.Rect(panelX, 0, PANEL_WIDTH, HEIGHT))
-    
-    font = p.font.SysFont('consolas', 15)
-    x_white = panelX + 35
-    x_black = panelX + PANEL_WIDTH // 2 + 10
+
+    font      = p.font.SysFont('consolas', 15)
+    fontClock = p.font.SysFont('consolas', 16, bold=True)
+    x_white   = panelX + 35
+    x_black   = panelX + PANEL_WIDTH // 2 + 10
+
+    # clocks - top player is opponent, bottom is self
+    def formatTime(secs):
+        secs = max(0, int(secs))
+        m, s = divmod(secs, 60)
+        return f"{m:02}:{s:02}"
+
+    if whiteTime is not None and blackTime is not None:
+            topTime    = blackTime if not flipped else whiteTime
+            bottomTime = whiteTime if not flipped else blackTime
+            topLabel   = "BLACK" if not flipped else "WHITE"
+            bottomLabel= "WHITE" if not flipped else "BLACK"
+
+            topActive    = (not flipped and not gs.whiteToMove) or (flipped and gs.whiteToMove)
+            bottomActive = (not flipped and gs.whiteToMove) or (flipped and not gs.whiteToMove)
+            topColor    = p.Color(200, 168, 75) if topActive    else p.Color(120, 100, 45)
+            bottomColor = p.Color(200, 168, 75) if bottomActive else p.Color(120, 100, 45)
+
+            top = fontClock.render(f"{topLabel}  {formatTime(topTime)}", True, topColor)
+            bot = fontClock.render(f"{bottomLabel}  {formatTime(bottomTime)}", True, bottomColor)
+            screen.blit(top, (panelX + PANEL_WIDTH//2 - top.get_width()//2, 8))       # dodaj
+            screen.blit(bot, (panelX + PANEL_WIDTH//2 - bot.get_width()//2, HEIGHT - 28))
+    clockOffset = 30 if whiteTime is not None else 0
 
     header = font.render('Move History', True, p.Color(200, 200, 200))
-    screen.blit(header, (panelX + PANEL_WIDTH//2 - header.get_width()//2, 10))
+    screen.blit(header, (panelX + PANEL_WIDTH//2 - header.get_width()//2, clockOffset + 8))
 
+    panelTop   = clockOffset + HEADER_HEIGHT
+    visLines   = (HEIGHT - panelTop - clockOffset) // LINE_HEIGHT
     total_lines = (len(moveHistory) + 1) // 2
-    scrollOffset = max(0, min(scrollOffset, total_lines - VISIBLE_LINES))
+    scrollOffset = max(0, min(scrollOffset, total_lines - visLines))
 
-    for i in range(VISIBLE_LINES):
-        lineNr = scrollOffset + i
+    for i in range(visLines):
+        lineNr  = scrollOffset + i
         if lineNr >= total_lines:
             break
-
-        moveNr = lineNr + 1
+        moveNr  = lineNr + 1
         moveIdx = lineNr * 2
-        y = HEADER_HEIGHT + i * LINE_HEIGHT
+        y = panelTop + i * LINE_HEIGHT
 
         nr = font.render(f"{moveNr}.", True, p.Color(150, 150, 150))
         screen.blit(nr, (panelX + 5, y))
@@ -259,20 +350,22 @@ def drawPanel(screen, moveHistory, scrollOffset):
             screen.blit(black, (x_black, y))
 
     # scrollbar
-    if total_lines > VISIBLE_LINES:
-        track_x = panelX + PANEL_WIDTH - 10
-        track_height = HEIGHT - HEADER_HEIGHT
-        p.draw.rect(screen, p.Color(60, 60, 60), p.Rect(track_x, HEADER_HEIGHT, 8, track_height))
-
-        thumb_ratio = VISIBLE_LINES / total_lines
+    if total_lines > visLines:
+        track_x      = panelX + PANEL_WIDTH - 10
+        track_height = HEIGHT - panelTop - clockOffset - 10
+        p.draw.rect(screen, p.Color(60, 60, 60), p.Rect(track_x, panelTop, 8, track_height))
+        thumb_ratio  = visLines / total_lines
         thumb_height = max(20, int(track_height * thumb_ratio))
-        thumb_pos = HEADER_HEIGHT + int((scrollOffset / total_lines) * track_height)
-        p.draw.rect(screen, p.Color(150, 150, 150), p.Rect(track_x, thumb_pos, 8, thumb_height), border_radius=4)
+        thumb_pos    = panelTop + int((scrollOffset / total_lines) * track_height)
+        p.draw.rect(screen, p.Color(60, 60, 60), p.Rect(track_x, thumb_pos, 8, thumb_height), border_radius=4)
 
-def drawCoordinates(screen):
+def drawCoordinates(screen, flipped=False):
     font = p.font.SysFont('consolas', 10, bold=True)
     files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
     ranks = ['8', '7', '6', '5', '4', '3', '2', '1']
+    if flipped:
+        files = files[::-1]
+        ranks = ranks[::-1]
 
     for i in range(DIMENSION):
         # color contrast to file color
@@ -289,6 +382,5 @@ def drawCoordinates(screen):
         file_color = color_on_dark if on_light else color_on_light
         file_label = font.render(files[i], True, file_color)
         screen.blit(file_label, (i * SQR_SIZE + SQR_SIZE - 7, HEIGHT - 11))
-
 if __name__ == "__main__":
     main()
