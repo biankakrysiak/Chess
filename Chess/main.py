@@ -40,6 +40,8 @@ def main():
     scrollDragging = False
     gameOverResult = None # {'winner': 'White'/'Black'/'Draw', 'reason': str}
     showGameOver = False
+    viewIndex = 0  # 0 = start, len(moveLog) = current
+    viewMode  = False
 
     def triggerGameOver(winner, reason):
         nonlocal gameOver, gameOverResult, showGameOver
@@ -87,7 +89,7 @@ def main():
             if e.type == p.QUIT:
                 running = False
             elif e.type == p.MOUSEWHEEL:
-                total_lines = (len(moveHistory) + 1) // 2
+                total_lines = len(moveHistory)
                 scrollOffset -= e.y
                 scrollOffset = max(0, min(scrollOffset, total_lines - VISIBLE_LINES))
             
@@ -97,7 +99,7 @@ def main():
             elif e.type == p.MOUSEMOTION:
                 if scrollDragging:
                     x, y = e.pos
-                    total_lines = (len(moveHistory) + 1) // 2
+                    total_lines = len(moveHistory)
                     if total_lines > VISIBLE_LINES:
                         track_height = HEIGHT - HEADER_HEIGHT
                         ratio = (y - HEADER_HEIGHT) / track_height
@@ -131,6 +133,20 @@ def main():
                     continue
                 if x >= WIDTH:
                     navRects, actionRects = drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped, gameOver)
+                    
+                    if navRects.get('start') and navRects['start'].collidepoint(x, y):
+                        viewIndex = 0
+                        viewMode  = True
+                    elif navRects.get('back') and navRects['back'].collidepoint(x, y):
+                        viewIndex = max(0, viewIndex - 1)
+                        viewMode  = viewIndex < len(gs.moveLog)
+                    elif navRects.get('fwd') and navRects['fwd'].collidepoint(x, y):
+                        viewIndex = min(len(gs.moveLog), viewIndex + 1)
+                        viewMode  = viewIndex < len(gs.moveLog)
+                    elif navRects.get('end') and navRects['end'].collidepoint(x, y):
+                        viewIndex = len(gs.moveLog)
+                        viewMode  = False
+                    
                     if not gameOver:
                         if actionRects.get('resign') and actionRects['resign'].collidepoint(x, y):
                             winner = 'Black' if gs.whiteToMove else 'White'
@@ -195,13 +211,19 @@ def main():
                                 promotionPiece = choosePromotion(screen, clickedMove, gs.whiteToMove, flipped)
                                 gs.board[clickedMove.endRow][clickedMove.endCol] = promotionPiece
                                 clickedMove.promotionPiece = promotionPiece
-
-                            validMoves = gs.getValidMoves()
                             notation = gs.getMoveNotation(clickedMove)
                             moveHistory.append(notation)
+                            
+                            validMoves = gs.getValidMoves()
+                            viewIndex = len(gs.moveLog)
+                            viewMode  = False
                             scrollOffset = max(0, (len(moveHistory)+1) // 2- VISIBLE_LINES)
                             
                             if gs.checkmate:
+                                if moveHistory:
+                                    last = moveHistory[-1]
+                                    if not last.endswith('#'):
+                                        moveHistory[-1] = last.rstrip('+') + '#'
                                 print(buildPGN(moveHistory))
                                 print("Checkmate")
                                 winner = 'Black' if gs.whiteToMove else 'White'
@@ -214,8 +236,30 @@ def main():
                         selected = None
                         validMoves = []
 
-        drawGameState(screen, gs, selected, validMoves, flipped)
-        drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped, gameOver)
+        if viewMode:
+            displayBoard = gs.getBoardAtMove(viewIndex)
+            displayLog   = gs.moveLog[:viewIndex]
+        else:
+            displayBoard = gs.board
+            displayLog   = gs.moveLog
+
+        drawBoard(screen, flipped)
+        if displayLog:
+            lastMove = displayLog[-1]
+            def sq(r, c):
+                dr = 7 - r if flipped else r
+                dc = 7 - c if flipped else c
+                return dr, dc
+            for r, c in [(lastMove.startRow, lastMove.startCol), (lastMove.endRow, lastMove.endCol)]:
+                dr, dc = sq(r, c)
+                s = p.Surface((SQR_SIZE, SQR_SIZE), p.SRCALPHA)
+                s.fill((200, 168, 75, 50))
+                screen.blit(s, (dc * SQR_SIZE, dr * SQR_SIZE))
+        if not viewMode:
+            drawHighlights(screen, gs, selected, validMoves, flipped)
+        drawPieces(screen, displayBoard, flipped)
+        drawCoordinates(screen, flipped)
+        drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped, gameOver, viewIndex)
         if showDrawOffer:
             drawDrawOfferPopup(screen, gs, flipped)
         if showGameOver and gameOverResult:
@@ -225,8 +269,6 @@ def main():
         #print(gs.board)
         #print(gs.moveLog)
     
-            
-
 def drawGameState(screen, gs, selected, validMoves, flipped):
     drawBoard(screen, flipped)
     drawHighlights(screen, gs, selected, validMoves, flipped)
@@ -356,7 +398,7 @@ def buildPGN(moveHistory):
             pgn += f"{move} "
     return pgn.strip()
 
-def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=None, flipped=False, gameOver=False):
+def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=None, flipped=False, gameOver=False, viewIndex=None):
     panelX = WIDTH
     p.draw.rect(screen, p.Color(50, 50, 50), p.Rect(panelX, 0, PANEL_WIDTH, HEIGHT))
 
@@ -445,6 +487,8 @@ def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=N
     x_white = panelX + 30
     x_black = panelX + PANEL_WIDTH // 2 + 8
 
+    activeMoveIdx = (viewIndex - 1) if viewIndex is not None else (len(moveHistory) - 1)
+
     for i in range(visLines):
         lineNr  = scrollOffset + i
         if lineNr >= total_lines:
@@ -456,13 +500,15 @@ def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=N
         nr = font.render(f"{moveNr}.", True, p.Color(150, 150, 150))
         screen.blit(nr, (panelX + 4, y))
 
-        white = font.render(moveHistory[moveIdx], True, p.Color(255, 255, 255))
+        wActive = (moveIdx == activeMoveIdx)
+        bActive = (moveIdx + 1 == activeMoveIdx)
+
+        white = font.render(moveHistory[moveIdx], True, p.Color(255, 230, 100) if wActive else p.Color(255, 255, 255))
         screen.blit(white, (x_white, y))
 
         if moveIdx + 1 < len(moveHistory):
-            black = font.render(moveHistory[moveIdx + 1], True, p.Color(200, 200, 200))
+            black = font.render(moveHistory[moveIdx + 1], True, p.Color(255, 230, 100) if bActive else p.Color(200, 200, 200))
             screen.blit(black, (x_black, y))
-
     # scrollbar
     if total_lines > visLines:
         track_x      = panelX + PANEL_WIDTH - 10

@@ -318,16 +318,19 @@ class ChessEngine:
 
     # notation 
     def getMoveNotation(self, move):
-    # check / mate checker
-        isCheckmate = self.checkmate
+        # after makeMove, whiteToMove is already flipped
+        # so whiteToMove=True means black just moved, whiteToMove=False means white just moved
+        isCheckmate = False
         isCheck = False
-        if not isCheckmate:
-            if self.whiteToMove:
-                isCheck = self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
-            else:
-                isCheck = self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
 
-        # disambiguation - if two pieces of the same type can move to the same square        disambig = ''
+        if self.whiteToMove:
+            # black just moved - check if white king is in check
+            isCheck = self.isSquareAttacked(self.whiteKingPos[0], self.whiteKingPos[1], byWhite=False)
+        else:
+            # white just moved - check if black king is in check
+            isCheck = self.isSquareAttacked(self.blackKingPos[0], self.blackKingPos[1], byWhite=True)
+
+        # disambiguation - if two pieces of the same type can move to the same square
         disambig = ''
         if move.pieceMoved[1] not in ('P', 'K'):
             ambiguous = []
@@ -346,3 +349,32 @@ class ChessEngine:
                     disambig = Move.colsToFiles[move.startCol] + Move.rowsToRanks[move.startRow]
 
         return move.getNotation(isCheck, isCheckmate, disambig)
+
+    # for arrows in game, showing previous moves
+    def getBoardAtMove(self, index): 
+        # rebuild board to move index
+        board = [
+            ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'],
+            ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'],
+            ['--', '--', '--', '--', '--', '--', '--', '--'],
+            ['--', '--', '--', '--', '--', '--', '--', '--'],
+            ['--', '--', '--', '--', '--', '--', '--', '--'],
+            ['--', '--', '--', '--', '--', '--', '--', '--'],
+            ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'],
+            ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR']
+        ]
+        for i, move in enumerate(self.moveLog[:index]):
+            board[move.startRow][move.startCol] = '--'
+            board[move.endRow][move.endCol] = move.pieceMoved
+            if move.pieceMoved[1] == 'K' and abs(move.endCol - move.startCol) == 2:
+                if move.endCol == 6:
+                    board[move.endRow][5] = board[move.endRow][7]
+                    board[move.endRow][7] = '--'
+                else:
+                    board[move.endRow][3] = board[move.endRow][0]
+                    board[move.endRow][0] = '--'
+            if move.enPassant:
+                board[move.startRow][move.endCol] = '--'
+            if move.promotionPiece:
+                board[move.endRow][move.endCol] = move.promotionPiece
+        return board
