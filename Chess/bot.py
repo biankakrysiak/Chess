@@ -1,9 +1,9 @@
 import random
 import time
-import torch
-import torch.nn as nn
-import numpy as np
-import chess
+import torch # type: ignore
+import torch.nn as nn # type: ignore
+import numpy as np # type: ignore
+import chess # type: ignore
 import os
 
 class EasyBot:
