@@ -235,6 +235,15 @@ def drawHighlights(screen, gs, selected, validMoves, flipped=False):
         dr = 7 - r if flipped else r
         dc = 7 - c if flipped else c
         return dr, dc
+    
+    # highlight last move
+    if gs.moveLog:
+        lastMove = gs.moveLog[-1]
+        for r, c in [(lastMove.startRow, lastMove.startCol), (lastMove.endRow, lastMove.endCol)]:
+            dr, dc = sq(r, c)
+            s = p.Surface((SQR_SIZE, SQR_SIZE), p.SRCALPHA)
+            s.fill((200, 168, 75, 50))
+            screen.blit(s, (dc * SQR_SIZE, dr * SQR_SIZE))
 
     if gs.whiteToMove:
         kr, kc = gs.whiteKingPos
@@ -382,5 +391,6 @@ def drawCoordinates(screen, flipped=False):
         file_color = color_on_dark if on_light else color_on_light
         file_label = font.render(files[i], True, file_color)
         screen.blit(file_label, (i * SQR_SIZE + SQR_SIZE - 7, HEIGHT - 11))
+
 if __name__ == "__main__":
     main()
