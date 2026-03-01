@@ -1,5 +1,10 @@
 import random
 import time
+import torch
+import torch.nn as nn
+import numpy as np
+import chess
+import os
 
 class EasyBot:
     def __init__(self, playAsWhite):
@@ -178,7 +183,17 @@ class MediumBot:
                 else:
                     score -= val + posBonus
         return score
-
+    def orderMoves(self, moves, gs):
+        # sort moves: captures first (MVV-LVA), then others
+        def score(move):
+            s = 0
+            if move.pieceCaptured != '--':
+                s += 10 * PIECE_VALUES.get(move.pieceCaptured[1], 0) - PIECE_VALUES.get(move.pieceMoved[1], 0)
+            if move.promotionPending:
+                s += 900
+            return s
+        return sorted(moves, key=score, reverse=True)
+    
     def minimax(self, gs, depth, alpha, beta, maximizing):
         if depth == 0:
             return self.evaluateBoard(gs), None
@@ -189,7 +204,7 @@ class MediumBot:
                       gs.blackKingsRookMoved, gs.blackQueensRookMoved,
                       gs.enPassantTarget)
 
-        moves = gs.getValidMoves()
+        moves = self.orderMoves(gs.getValidMoves(), gs)
         if not moves:
             if gs.checkmate:
                 return (-99999 if maximizing else 99999), None
@@ -244,6 +259,138 @@ class MediumBot:
         _, move = self.minimax(gs, self.depth, -float('inf'), float('inf'), maximizing)
         return move
     
-class HardBot:
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'modelTraining', 'chess_model_hard.pth')
+
+class ChessNet(nn.Module):
     def __init__(self):
-        pass
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(12, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(),
+            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
+            nn.Conv2d(64, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(),
+        )
+        self.fc = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64*8*8, 256), nn.ReLU(), nn.Dropout(0.3),
+            nn.Linear(256, 64),     nn.ReLU(),
+            nn.Linear(64, 1),       nn.Tanh()
+        )
+    def forward(self, x):
+        return self.fc(self.conv(x)).squeeze(1)
+
+def boardToTensor(board):
+    planes = np.zeros((12, 8, 8), dtype=np.float32)
+    piece_idx = {'P':0,'N':1,'B':2,'R':3,'Q':4,'K':5}
+    for sq in chess.SQUARES:
+        piece = board.piece_at(sq)
+        if piece:
+            row = 7 - (sq // 8)
+            col = sq % 8
+            idx = piece_idx[piece.symbol().upper()]
+            if piece.color == chess.WHITE:
+                planes[idx][row][col] = 1.0
+            else:
+                planes[idx+6][row][col] = 1.0
+    return planes
+
+class HardBot:
+    def __init__(self, playAsWhite):
+        self.playAsWhite = playAsWhite
+        self.depth = 4
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = ChessNet().to(self.device)
+        self.model.load_state_dict(torch.load(MODEL_PATH, map_location=self.device))
+        self.model.eval()
+
+    def gsToCBoard(self, gs):
+        board = chess.Board()
+        board.clear()
+        piece_map = {'P': chess.PAWN,   'N': chess.KNIGHT, 'B': chess.BISHOP,
+                     'R': chess.ROOK,   'Q': chess.QUEEN,  'K': chess.KING}
+        for r in range(8):
+            for c in range(8):
+                p = gs.board[r][c]
+                if p != '--':
+                    sq    = chess.square(c, 7 - r)
+                    color = chess.WHITE if p[0] == 'w' else chess.BLACK
+                    board.set_piece_at(sq, chess.Piece(piece_map[p[1]], color))
+        board.turn = chess.WHITE if gs.whiteToMove else chess.BLACK
+        return board
+
+    def evaluateBoard(self, gs):
+        board  = self.gsToCBoard(gs)
+        tensor = torch.tensor(boardToTensor(board)).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            score = self.model(tensor).item()
+        return int(score * 10000)
+
+    def orderMoves(self, moves):
+        def score(move):
+            s = 0
+            if move.pieceCaptured != '--':
+                s += 10 * PIECE_VALUES.get(move.pieceCaptured[1], 0) \
+                        -      PIECE_VALUES.get(move.pieceMoved[1], 0)
+            if move.promotionPending:
+                s += 900
+            return s
+        return sorted(moves, key=score, reverse=True)
+
+    def minimax(self, gs, depth, alpha, beta, maximizing):
+        if depth == 0:
+            return self.evaluateBoard(gs), None
+
+        savedFlags = (gs.whiteKingMoved, gs.blackKingMoved,
+                      gs.whiteKingsRookMoved, gs.whiteQueensRookMoved,
+                      gs.blackKingsRookMoved, gs.blackQueensRookMoved,
+                      gs.enPassantTarget)
+
+        moves = self.orderMoves(gs.getValidMoves())
+        if not moves:
+            if gs.checkmate:
+                return (-99999 if maximizing else 99999), None
+            return 0, None
+
+        bestMove = None
+        if maximizing:
+            maxEval = -float('inf')
+            for move in moves:
+                gs.makeMove(move)
+                if move.promotionPending:
+                    gs.board[move.endRow][move.endCol] = 'wQ'
+                    move.promotionPiece = 'wQ'
+                eval, _ = self.minimax(gs, depth-1, alpha, beta, False)
+                gs.undoMove()
+                (gs.whiteKingMoved, gs.blackKingMoved,
+                 gs.whiteKingsRookMoved, gs.whiteQueensRookMoved,
+                 gs.blackKingsRookMoved, gs.blackQueensRookMoved,
+                 gs.enPassantTarget) = savedFlags
+                if eval > maxEval:
+                    maxEval, bestMove = eval, move
+                alpha = max(alpha, eval)
+                if beta <= alpha:
+                    break
+            return maxEval, bestMove
+        else:
+            minEval = float('inf')
+            for move in moves:
+                gs.makeMove(move)
+                if move.promotionPending:
+                    gs.board[move.endRow][move.endCol] = 'bQ'
+                    move.promotionPiece = 'bQ'
+                eval, _ = self.minimax(gs, depth-1, alpha, beta, True)
+                gs.undoMove()
+                (gs.whiteKingMoved, gs.blackKingMoved,
+                 gs.whiteKingsRookMoved, gs.whiteQueensRookMoved,
+                 gs.blackKingsRookMoved, gs.blackQueensRookMoved,
+                 gs.enPassantTarget) = savedFlags
+                if eval < minEval:
+                    minEval, bestMove = eval, move
+                beta = min(beta, eval)
+                if beta <= alpha:
+                    break
+            return minEval, bestMove
+
+    def getMove(self, gs):
+        maximizing = gs.whiteToMove
+        _, move = self.minimax(gs, self.depth, -float('inf'), float('inf'), maximizing)
+        return move
