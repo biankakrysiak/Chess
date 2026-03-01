@@ -1,5 +1,7 @@
 # Handles user input and shows current position (Game state)
 import pygame as p # type: ignore
+import os
+from datetime import datetime
 import engine
 from move import Move
 import menu
@@ -36,7 +38,15 @@ def main():
     moveHistory = []
     scrollOffset = 0
     scrollDragging = False
-    
+    gameOverResult = None # {'winner': 'White'/'Black'/'Draw', 'reason': str}
+    showGameOver = False
+
+    def triggerGameOver(winner, reason):
+        nonlocal gameOver, gameOverResult, showGameOver
+        gameOver = True
+        gameOverResult = {'winner': winner, 'reason': reason}
+        showGameOver = True
+
     mode = settings['mode']
     baseTime = settings['baseTime']
     increment = settings['increment']
@@ -53,6 +63,7 @@ def main():
     blackTime = float(baseTime)
     lastTick = p.time.get_ticks()
     gameOver = False
+    showDrawOffer = False
 
     running = True
     while running:
@@ -65,14 +76,12 @@ def main():
                 whiteTime -= dt
                 if whiteTime <= 0:
                     whiteTime = 0
-                    gameOver = True
-                    print("Black wins on time")
+                    triggerGameOver('Black', 'on time')
             else:
                 blackTime -= dt
                 if blackTime <= 0:
                     blackTime = 0
-                    gameOver = True
-                    print("White wins on time")
+                    triggerGameOver('White', 'on time')
         
         for e in p.event.get():
             if e.type == p.QUIT:
@@ -81,8 +90,10 @@ def main():
                 total_lines = (len(moveHistory) + 1) // 2
                 scrollOffset -= e.y
                 scrollOffset = max(0, min(scrollOffset, total_lines - VISIBLE_LINES))
+            
             elif e.type == p.MOUSEBUTTONUP and e.button == 1:
                 scrollDragging = False
+            
             elif e.type == p.MOUSEMOTION:
                 if scrollDragging:
                     x, y = e.pos
@@ -92,15 +103,54 @@ def main():
                         ratio = (y - HEADER_HEIGHT) / track_height
                         scrollOffset = int(ratio * total_lines)
                         scrollOffset = max(0, min(scrollOffset, total_lines - VISIBLE_LINES))
+            
             elif e.type == p.MOUSEBUTTONDOWN and e.button == 1:
-                if gameOver:
-                    continue
                 x, y = e.pos
+
+                if showDrawOffer:
+                    acceptRect, declineRect, _ = drawDrawOfferPopup(screen, gs, flipped)
+                    if acceptRect.collidepoint(x, y):
+                        showDrawOffer = False
+                        triggerGameOver('Draw', 'by agreement')
+                    elif declineRect.collidepoint(x, y):
+                        showDrawOffer = False
+                    continue
+                
+                if showGameOver:
+                    popupW, popupH = 320, 140
+                    popupX = (WIDTH - popupW) // 2
+                    popupY = (HEIGHT - popupH) // 2
+                    closeSize = 20
+                    closeRect = p.Rect(popupX + popupW - closeSize - 8, popupY + 8, closeSize, closeSize)
+                    if closeRect.collidepoint(x, y):
+                        showGameOver = False
+                    continue
+
                 if x >= WIDTH + PANEL_WIDTH - 12:  # scrollbar click
                     scrollDragging = True
                     continue
                 if x >= WIDTH:
+                    navRects, actionRects = drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped, gameOver)
+                    if not gameOver:
+                        if actionRects.get('resign') and actionRects['resign'].collidepoint(x, y):
+                            winner = 'Black' if gs.whiteToMove else 'White'
+                            triggerGameOver(winner, 'by resignation')
+                        elif actionRects.get('draw') and actionRects['draw'].collidepoint(x, y):
+                            if mode == 'local':
+                                showDrawOffer = True
+                                #triggerGameOver('Draw', 'by agreement')
+                    else:
+                        if actionRects.get('menu') and actionRects['menu'].collidepoint(x, y):
+                            running = False
+                            main()
+                            return
+                        elif actionRects.get('save') and actionRects['save'].collidepoint(x, y):
+                            savePGN(moveHistory, gameOverResult, settings)
                     continue
+                
+                if gameOver:
+                    continue
+                
                 col = x // SQR_SIZE
                 row = y // SQR_SIZE
                 if flipped:
@@ -128,7 +178,6 @@ def main():
                         selected = None
                         validMoves = []
                     else:
-                        #validMoves = gs.getValidMoves()
                         clickedMove = None
                         for m in validMoves:
                             if m.startRow == selected[0] and m.startCol == selected[1] and \
@@ -155,15 +204,22 @@ def main():
                             if gs.checkmate:
                                 print(buildPGN(moveHistory))
                                 print("Checkmate")
+                                winner = 'Black' if gs.whiteToMove else 'White'
+                                triggerGameOver(winner, 'by checkmate')
                             elif gs.stalemate:
                                 print(buildPGN(moveHistory))
                                 print("Stalemate")
+                                triggerGameOver('Draw', 'by stalemate')
 
                         selected = None
                         validMoves = []
 
         drawGameState(screen, gs, selected, validMoves, flipped)
-        drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped)
+        drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime, blackTime, flipped, gameOver)
+        if showDrawOffer:
+            drawDrawOfferPopup(screen, gs, flipped)
+        if showGameOver and gameOverResult:
+            drawGameOverPopup(screen, gameOverResult)
         clock.tick(fps)
         p.display.flip()
         #print(gs.board)
@@ -300,45 +356,94 @@ def buildPGN(moveHistory):
             pgn += f"{move} "
     return pgn.strip()
 
-def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=None, flipped=False):
+def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=None, flipped=False, gameOver=False):
     panelX = WIDTH
     p.draw.rect(screen, p.Color(50, 50, 50), p.Rect(panelX, 0, PANEL_WIDTH, HEIGHT))
 
-    font      = p.font.SysFont('consolas', 15)
-    fontClock = p.font.SysFont('consolas', 16, bold=True)
-    x_white   = panelX + 35
-    x_black   = panelX + PANEL_WIDTH // 2 + 10
+    font      = p.font.SysFont('consolas', 13)
+    fontClock = p.font.SysFont('consolas', 14, bold=True)
 
-    # clocks - top player is opponent, bottom is self
     def formatTime(secs):
         secs = max(0, int(secs))
         m, s = divmod(secs, 60)
         return f"{m:02}:{s:02}"
 
+    btnFont = p.font.SysFont('consolas', 9, bold=True)
+    btnH    = 22
+    btnW    = (PANEL_WIDTH - 20) // 4
+
+    # buttons at bottom
+    btnY2   = HEIGHT - btnH - 6
+    actionRects = {}
+    if not gameOver:
+        activeBtns = [('Resign', 'resign'), ('Draw', 'draw')]
+        bw2 = (PANEL_WIDTH - 20) // 2
+        for i, (label, key) in enumerate(activeBtns):
+            bx   = panelX + 5 + i * (bw2 + 10)
+            rect = p.Rect(bx, btnY2, bw2, btnH)
+            actionRects[key] = rect
+            p.draw.rect(screen, p.Color(65, 65, 65), rect, border_radius=3)
+            p.draw.rect(screen, p.Color(160, 135, 65), rect, width=1, border_radius=3)
+            lbl = btnFont.render(label, True, p.Color(200, 168, 75))
+            screen.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.centery - lbl.get_height()//2))
+    else:
+        activeBtns = [('Resign', 'resign'), ('Draw', 'draw'), ('Menu', 'menu'), ('Save', 'save')]
+        for i, (label, key) in enumerate(activeBtns):
+            bx        = panelX + 5 + i * (btnW + 3)
+            rect      = p.Rect(bx, btnY2, btnW, btnH)
+            actionRects[key] = rect
+            enabled   = key in ('menu', 'save')
+            borderCol = p.Color(160, 135, 65) if enabled else p.Color(90, 80, 50)
+            textCol   = p.Color(200, 168, 75) if enabled else p.Color(100, 90, 60)
+            p.draw.rect(screen, p.Color(65, 65, 65), rect, border_radius=3)
+            p.draw.rect(screen, borderCol, rect, width=1, border_radius=3)
+            lbl = btnFont.render(label, True, textCol)
+            screen.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.centery - lbl.get_height()//2))
+
+    btnY    = btnY2 - btnH - 6
+    btnDefs = [('|<', 'start'), ('<', 'back'), ('>', 'fwd'), ('>|', 'end')]
+    navRects = {}
+    for i, (label, key) in enumerate(btnDefs):
+        bx   = panelX + 5 + i * (btnW + 3)
+        rect = p.Rect(bx, btnY, btnW, btnH)
+        navRects[key] = rect
+        p.draw.rect(screen, p.Color(65, 65, 65), rect, border_radius=3)
+        p.draw.rect(screen, p.Color(160, 135, 65), rect, width=1, border_radius=3)
+        lbl = btnFont.render(label, True, p.Color(200, 168, 75))
+        screen.blit(lbl, (rect.centerx - lbl.get_width()//2, rect.centery - lbl.get_height()//2))
+
+    # clocks above nav buttons
+    clockH       = 22
+    clockAreaTop = btnY - clockH * 2 - 8
+
     if whiteTime is not None and blackTime is not None:
-            topTime    = blackTime if not flipped else whiteTime
-            bottomTime = whiteTime if not flipped else blackTime
-            topLabel   = "BLACK" if not flipped else "WHITE"
-            bottomLabel= "WHITE" if not flipped else "BLACK"
+        topTime     = blackTime if not flipped else whiteTime
+        bottomTime  = whiteTime if not flipped else blackTime
+        topLabel    = "BLACK" if not flipped else "WHITE"
+        bottomLabel = "WHITE" if not flipped else "BLACK"
 
-            topActive    = (not flipped and not gs.whiteToMove) or (flipped and gs.whiteToMove)
-            bottomActive = (not flipped and gs.whiteToMove) or (flipped and not gs.whiteToMove)
-            topColor    = p.Color(200, 168, 75) if topActive    else p.Color(120, 100, 45)
-            bottomColor = p.Color(200, 168, 75) if bottomActive else p.Color(120, 100, 45)
+        topActive    = (not flipped and not gs.whiteToMove) or (flipped and gs.whiteToMove)
+        bottomActive = (not flipped and gs.whiteToMove)     or (flipped and not gs.whiteToMove)
+        topColor    = p.Color(200, 168, 75) if topActive    else p.Color(120, 100, 45)
+        bottomColor = p.Color(200, 168, 75) if bottomActive else p.Color(120, 100, 45)
 
-            top = fontClock.render(f"{topLabel}  {formatTime(topTime)}", True, topColor)
-            bot = fontClock.render(f"{bottomLabel}  {formatTime(bottomTime)}", True, bottomColor)
-            screen.blit(top, (panelX + PANEL_WIDTH//2 - top.get_width()//2, 8))       # dodaj
-            screen.blit(bot, (panelX + PANEL_WIDTH//2 - bot.get_width()//2, HEIGHT - 28))
-    clockOffset = 30 if whiteTime is not None else 0
+        top = fontClock.render(f"{topLabel}  {formatTime(topTime)}", True, topColor)
+        bot = fontClock.render(f"{bottomLabel}  {formatTime(bottomTime)}", True, bottomColor)
+        screen.blit(top, (panelX + PANEL_WIDTH//2 - top.get_width()//2, clockAreaTop))
+        screen.blit(bot, (panelX + PANEL_WIDTH//2 - bot.get_width()//2, clockAreaTop + clockH))
 
     header = font.render('Move History', True, p.Color(200, 200, 200))
-    screen.blit(header, (panelX + PANEL_WIDTH//2 - header.get_width()//2, clockOffset + 8))
+    screen.blit(header, (panelX + PANEL_WIDTH//2 - header.get_width()//2, 6))
 
-    panelTop   = clockOffset + HEADER_HEIGHT
-    visLines   = (HEIGHT - panelTop - clockOffset) // LINE_HEIGHT
-    total_lines = (len(moveHistory) + 1) // 2
-    scrollOffset = max(0, min(scrollOffset, total_lines - visLines))
+    LINE_HEIGHT   = 18
+    panelTop      = HEADER_HEIGHT
+    panelBottom   = clockAreaTop - 6
+    visLines      = (panelBottom - panelTop) // LINE_HEIGHT
+    total_lines   = (len(moveHistory) + 1) // 2
+    scrollOffset  = max(0, min(scrollOffset, max(0, total_lines - visLines)))
+
+    x_white = panelX + 30
+    x_black = panelX + PANEL_WIDTH // 2 + 8
 
     for i in range(visLines):
         lineNr  = scrollOffset + i
@@ -349,7 +454,7 @@ def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=N
         y = panelTop + i * LINE_HEIGHT
 
         nr = font.render(f"{moveNr}.", True, p.Color(150, 150, 150))
-        screen.blit(nr, (panelX + 5, y))
+        screen.blit(nr, (panelX + 4, y))
 
         white = font.render(moveHistory[moveIdx], True, p.Color(255, 255, 255))
         screen.blit(white, (x_white, y))
@@ -361,12 +466,14 @@ def drawPanel(screen, gs, moveHistory, scrollOffset, whiteTime=None, blackTime=N
     # scrollbar
     if total_lines > visLines:
         track_x      = panelX + PANEL_WIDTH - 10
-        track_height = HEIGHT - panelTop - clockOffset - 10
+        track_height = panelBottom - panelTop
         p.draw.rect(screen, p.Color(60, 60, 60), p.Rect(track_x, panelTop, 8, track_height))
         thumb_ratio  = visLines / total_lines
         thumb_height = max(20, int(track_height * thumb_ratio))
-        thumb_pos    = panelTop + int((scrollOffset / total_lines) * track_height)
-        p.draw.rect(screen, p.Color(60, 60, 60), p.Rect(track_x, thumb_pos, 8, thumb_height), border_radius=4)
+        thumb_pos    = panelTop + int((scrollOffset / max(1, total_lines)) * track_height)
+        p.draw.rect(screen, p.Color(130, 110, 60), p.Rect(track_x, thumb_pos, 8, thumb_height), border_radius=4)
+
+    return navRects, actionRects
 
 def drawCoordinates(screen, flipped=False):
     font = p.font.SysFont('consolas', 10, bold=True)
@@ -391,6 +498,133 @@ def drawCoordinates(screen, flipped=False):
         file_color = color_on_dark if on_light else color_on_light
         file_label = font.render(files[i], True, file_color)
         screen.blit(file_label, (i * SQR_SIZE + SQR_SIZE - 7, HEIGHT - 11))
+
+def savePGN(moveHistory, gameOverResult, settings):
+    date = datetime.now().strftime('%Y.%m.%d')
+    utcDate = datetime.utcnow().strftime('%Y.%m.%d')
+    utcTime = datetime.utcnow().strftime('%H:%M:%S')
+
+    if gameOverResult:
+        w = gameOverResult['winner']
+        if w == 'White':
+            result = '1-0'
+        elif w == 'Black':
+            result = '0-1'
+        else:
+            result = '1/2-1/2'
+    else:
+        result = '*'
+
+    termination = 'Normal'
+    if gameOverResult:
+        reason = gameOverResult['reason']
+        if 'time' in reason:
+            termination = 'Time forfeit'
+        elif 'resignation' in reason:
+            termination = 'Abandoned'
+
+    lines = []
+    lines.append(f'[Event "Chess Game"]')
+    lines.append(f'[Site "Local"]')
+    lines.append(f'[Date "{date}"]')
+    lines.append(f'[Round "-"]')
+    lines.append(f'[White "White"]')
+    lines.append(f'[Black "Black"]')
+    lines.append(f'[Result "{result}"]')
+    lines.append(f'[UTCDate "{utcDate}"]')
+    lines.append(f'[UTCTime "{utcTime}"]')
+    lines.append(f'[Variant "Standard"]')
+    lines.append(f'[TimeControl "{settings.get("timeLabel", "?")}"]')
+    lines.append(f'[Termination "{termination}"]')
+    lines.append('')
+    lines.append(buildPGN(moveHistory) + ' ' + result)
+
+    filename = f"game_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pgn"
+    path = os.path.join(os.path.dirname(__file__), filename)
+    with open(path, 'w') as f:
+        f.write('\n'.join(lines))
+    print(f"Saved: {path}")
+
+def drawGameOverPopup(screen, result):
+    popupW, popupH = 320, 140
+    popupX = (WIDTH - popupW) // 2
+    popupY = (HEIGHT - popupH) // 2
+
+    overlay = p.Surface((WIDTH, HEIGHT), p.SRCALPHA)
+    overlay.fill((0, 0, 0, 120))
+    screen.blit(overlay, (0, 0))
+
+    p.draw.rect(screen, p.Color(45, 45, 45), p.Rect(popupX, popupY, popupW, popupH), border_radius=8)
+    p.draw.rect(screen, p.Color(200, 168, 75), p.Rect(popupX, popupY, popupW, popupH), width=2, border_radius=8)
+
+    fontTitle  = p.font.SysFont('consolas', 20, bold=True)
+    fontSub    = p.font.SysFont('consolas', 14)
+    fontClose  = p.font.SysFont('consolas', 13, bold=True)
+
+    winner = result['winner']
+    reason = result['reason']
+
+    if winner == 'Draw':
+        titleText = 'Draw'
+        subText   = reason
+    else:
+        titleText = f'{winner} wins'
+        subText   = reason
+
+    title = fontTitle.render(titleText, True, p.Color(200, 168, 75))
+    sub   = fontSub.render(subText,     True, p.Color(200, 200, 200))
+
+    screen.blit(title, (popupX + popupW//2 - title.get_width()//2, popupY + 45))
+    screen.blit(sub,   (popupX + popupW//2 - sub.get_width()//2,   popupY + 80))
+
+    # close button
+    closeSize = 20
+    closeRect = p.Rect(popupX + popupW - closeSize - 8, popupY + 8, closeSize, closeSize)
+    p.draw.rect(screen, p.Color(65, 65, 65), closeRect, border_radius=3)
+    p.draw.rect(screen, p.Color(160, 135, 65), closeRect, width=1, border_radius=3)
+    x_lbl = fontClose.render('x', True, p.Color(200, 168, 75))
+    screen.blit(x_lbl, (closeRect.centerx - x_lbl.get_width()//2, closeRect.centery - x_lbl.get_height()//2))
+
+def drawDrawOfferPopup(screen, gs, flipped):
+    offering = 'Black' if gs.whiteToMove else 'White'  # prev player offers
+    accepting = 'White' if gs.whiteToMove else 'Black'
+
+    popupW, popupH = 280, 110
+    popupX = (WIDTH - popupW) // 2
+    # popup for accepting player
+    if (accepting == 'White' and not flipped) or (accepting == 'Black' and flipped):
+        popupY = HEIGHT - popupH - 20  
+    else:
+        popupY = 20
+
+    overlay = p.Surface((WIDTH, HEIGHT), p.SRCALPHA)
+    overlay.fill((0, 0, 0, 80))
+    screen.blit(overlay, (0, 0))
+
+    p.draw.rect(screen, p.Color(45, 45, 45), p.Rect(popupX, popupY, popupW, popupH), border_radius=8)
+    p.draw.rect(screen, p.Color(200, 168, 75), p.Rect(popupX, popupY, popupW, popupH), width=2, border_radius=8)
+
+    fontSub  = p.font.SysFont('consolas', 12)
+    fontBtn  = p.font.SysFont('consolas', 11, bold=True)
+
+    txt = fontSub.render(f'{offering} offers a draw', True, p.Color(200, 200, 200))
+    screen.blit(txt, (popupX + popupW//2 - txt.get_width()//2, popupY + 14))
+
+    btnW, btnH = 90, 26
+    acceptRect = p.Rect(popupX + popupW//2 - btnW - 8, popupY + popupH - btnH - 12, btnW, btnH)
+    declineRect = p.Rect(popupX + popupW//2 + 8,        popupY + popupH - btnH - 12, btnW, btnH)
+
+    p.draw.rect(screen, p.Color(65, 65, 65), acceptRect,  border_radius=3)
+    p.draw.rect(screen, p.Color(160, 135, 65), acceptRect, width=1, border_radius=3)
+    p.draw.rect(screen, p.Color(65, 65, 65), declineRect, border_radius=3)
+    p.draw.rect(screen, p.Color(160, 135, 65), declineRect, width=1, border_radius=3)
+
+    a = fontBtn.render('Accept', True, p.Color(200, 168, 75))
+    d = fontBtn.render('Decline', True, p.Color(200, 168, 75))
+    screen.blit(a, (acceptRect.centerx  - a.get_width()//2, acceptRect.centery  - a.get_height()//2))
+    screen.blit(d, (declineRect.centerx - d.get_width()//2, declineRect.centery - d.get_height()//2))
+
+    return acceptRect, declineRect, popupY
 
 if __name__ == "__main__":
     main()
