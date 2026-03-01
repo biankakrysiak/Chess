@@ -28,6 +28,7 @@ class ChessEngine:
         self.checkingAttack = False
         self.checkmate = False
         self.stalemate = False
+        self.positionHistory = {}
 
     def makeMove(self, move):
         self.board[move.startRow][move.startCol] = "--"
@@ -87,6 +88,8 @@ class ChessEngine:
             self.board[move.startRow][move.endCol] = "--"
 
         self.whiteToMove = not self.whiteToMove
+        key = self._boardKey()
+        self.positionHistory[key] = self.positionHistory.get(key, 0) + 1
 
     def getAllPossibleMoves(self):
         moves = []
@@ -233,6 +236,7 @@ class ChessEngine:
                       self.whiteKingsRookMoved, self.whiteQueensRookMoved,
                       self.blackKingsRookMoved, self.blackQueensRookMoved,
                       self.enPassantTarget)
+        savedHistory = self.positionHistory.copy()
         moves = self.getAllPossibleMoves()
         validMoves = []
         for move in moves:
@@ -249,6 +253,7 @@ class ChessEngine:
              self.whiteKingsRookMoved, self.whiteQueensRookMoved,
              self.blackKingsRookMoved, self.blackQueensRookMoved,
              self.enPassantTarget) = savedFlags
+            self.positionHistory = savedHistory.copy()
             
         if len(validMoves) == 0:
             if self.whiteToMove:
@@ -263,6 +268,9 @@ class ChessEngine:
         else:
             self.checkmate = False
             self.stalemate = False
+        
+        if self.isThreefoldRepetition():  # <-- dodaj tu
+            self.stalemate = True
 
         return validMoves
     
@@ -315,6 +323,12 @@ class ChessEngine:
         if move.enPassant:
             self.board[move.endRow][move.endCol] = "--"
             self.board[move.startRow][move.endCol] = move.pieceCaptured  # restore captured pawn
+        
+        key = self._boardKey()
+        if key in self.positionHistory:
+            self.positionHistory[key] -= 1
+            if self.positionHistory[key] == 0:
+                del self.positionHistory[key]
 
     # notation 
     def getMoveNotation(self, move):
@@ -378,3 +392,16 @@ class ChessEngine:
             if move.promotionPiece:
                 board[move.endRow][move.endCol] = move.promotionPiece
         return board
+    
+    def _boardKey(self):
+        board_str = ''.join(''.join(row) for row in self.board)
+        flags = (self.whiteToMove,
+                 self.whiteKingMoved, self.blackKingMoved,
+                 self.whiteKingsRookMoved, self.whiteQueensRookMoved,
+                 self.blackKingsRookMoved, self.blackQueensRookMoved,
+                 self.enPassantTarget)
+        return board_str + str(flags)
+
+    def isThreefoldRepetition(self):
+        key = self._boardKey()
+        return self.positionHistory.get(key, 0) >= 3
