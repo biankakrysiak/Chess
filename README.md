@@ -54,12 +54,12 @@ python Chess/main.py
 ## Bot Difficulty Modes
 
 ### Easy
-Heuristic-based bot. Prefers checkmates, avoids hanging pieces, prefers captures where material is equal or better, and plays towards the center. Deliberately imperfect — occasionally plays random moves. 
+Heuristic-based bot. Prefers checkmates, avoids hanging pieces, prefers captures where material is equal or better, and plays towards the center. Deliberately imperfect - occasionally plays random moves. 
 
 ### Medium
 Searches 3 moves ahead using minimax - tries all possible continuations and picks the best one.
 Uses alpha-beta pruning to skip branches that can't affect the result, making the search fast enough to run in real time.
-Positions are scored by material count plus bonuses for piece placement (e.g. knights in the center score higher than knights on the edge).
+Positions are scored by material count plus bonuses for piece placement (for example, knights in the center score higher than knights on the edge).
 Captures are evaluated first to cut off bad lines earlier.
 
 ### Hard
@@ -71,8 +71,8 @@ Currently trained on a limited dataset (~79 PGN files, blitz games, 2200+ elo) d
 **To retrain with more data:**
 1. Add PGN files to `Chess/modelTraining/pgn_data/`
 2. Run `prepareData.py` to generate dataset chunks
-3. Run `train.py` — saves best model as `chess_model_hard.pth`
-4. The architecture in `train.py` and `bot.py` (`ChessNet` class) **must be identical** — mismatches will cause a runtime error
+3. Run `train.py` - saves best model as `chess_model_hard.pth`
+4. The architecture in `train.py` and `bot.py` (`ChessNet` class) **must be identical** - mismatches will cause a runtime error
 
 ## Time Controls
 
