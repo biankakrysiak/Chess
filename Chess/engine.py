@@ -269,8 +269,7 @@ class ChessEngine:
             self.checkmate = False
             self.stalemate = False
         
-        if self.isThreefoldRepetition():  # <-- dodaj tu
-            self.stalemate = True
+
 
         return validMoves
     
@@ -396,10 +395,8 @@ class ChessEngine:
     def _boardKey(self):
         board_str = ''.join(''.join(row) for row in self.board)
         flags = (self.whiteToMove,
-                 self.whiteKingMoved, self.blackKingMoved,
-                 self.whiteKingsRookMoved, self.whiteQueensRookMoved,
-                 self.blackKingsRookMoved, self.blackQueensRookMoved,
-                 self.enPassantTarget)
+             self.whiteKingsRookMoved, self.whiteQueensRookMoved,
+             self.blackKingsRookMoved, self.blackQueensRookMoved)
         return board_str + str(flags)
 
     def isThreefoldRepetition(self):

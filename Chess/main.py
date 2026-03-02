@@ -235,11 +235,12 @@ def main():
                                 print("Checkmate")
                                 winner = 'Black' if gs.whiteToMove else 'White'
                                 triggerGameOver(winner, 'by checkmate')
+                            elif gs.isThreefoldRepetition():
+                                triggerGameOver('Draw', 'by threefold repetition')
                             elif gs.stalemate:
                                 print(buildPGN(moveHistory))
                                 print("Stalemate")
-                                reason = 'by threefold repetition' if gs.isThreefoldRepetition() else 'by stalemate'
-                                triggerGameOver('Draw', reason)
+                                triggerGameOver('Draw', 'by stalematee')
 
                         selected = None
                         validMoves = []
@@ -274,9 +275,10 @@ def main():
                                         moveHistory[-1] = last.rstrip('+') + '#'
                                 winner = 'Black' if gs.whiteToMove else 'White'
                                 triggerGameOver(winner, 'by checkmate')
+                            elif gs.isThreefoldRepetition():
+                                triggerGameOver('Draw', 'by threefold repetition')
                             elif gs.stalemate:
-                                reason = 'by threefold repetition' if gs.isThreefoldRepetition() else 'by stalemate'
-                                triggerGameOver('Draw', reason)
+                                triggerGameOver('Draw', 'by stalemate')
                 else:
                     botMoveTime = None 
 
